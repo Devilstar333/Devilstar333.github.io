@@ -13,10 +13,10 @@ Jan, text-generation-webui, Roo Code and friends**.
 
 ## Live demo
 
-**https://devilstar333.github.io/llm-hardware-calculator/**
+**https://devilstar333.github.io/**
 
 (English by default; use the **PT** button in the header for Portuguese, or open
-`.../?lang=pt`.)
+https://devilstar333.github.io/?lang=pt.)
 
 ## What it tells you
 
@@ -54,7 +54,7 @@ as an order of magnitude to decide what to download — not as a guarantee.
 
 - **Any quantization** in a data table — adding a new one is a one-line change.
 - **Live recalculation** on every keystroke, with inline validation.
-- **Deep links / shareable results**: `index.html?ram=32&vram=12&params=24&quant=q4_k_m&ctx=8192&lang=en`
+- **Deep links / shareable results**: https://devilstar333.github.io/?ram=32&vram=12&params=24&quant=q4_k_m&ctx=8192&lang=en
 - **Copy summary** button — puts a plain-text report (including the share
   link) on your clipboard, ready to paste into a forum or issue.
 - **English by default, Portuguese via the language toggle** (persisted, and
@@ -99,7 +99,25 @@ Fonts (both required for styling). No analytics, no ads, no cookies.
 One `index.html` with inline CSS and JavaScript, styled with Tailwind via CDN.
 No framework, no bundler, no `node_modules`.
 
+## Support the project
+
+Hosting is free, so support goes straight into the domain and new features.
+
+- **GitHub Sponsors:** https://github.com/sponsors/Devilstar333
+
+The most valuable contribution costs nothing: open an issue with **real-world
+numbers** (your GPU, model, quantization and measured tokens/s). Real reports
+are what make these estimates better for everyone.
+
+## Roadmap
+
+- Content pages: per-model pages (e.g. "32B on 12 GB VRAM"), GPU-by-VRAM table,
+  FAQ and a quantization glossary.
+- Optional telemetry-free traffic measurement so improvements are guided by real
+  usage.
+- A custom domain (a real domain is a requirement for most affiliate and ad
+  programs; `*.github.io` works fine until then).
+
 ## License
 
-_TBD — add a `LICENSE` file before publishing (MIT is a good fit for a tool
-like this)._
+_TBD — add a `LICENSE` file (MIT is a good fit for a tool like this)._

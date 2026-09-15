@@ -1,0 +1,11 @@
+# Botão "Sponsor" do repositório.
+#
+# IMPORTANTE: o botão só funciona depois que a conta estiver habilitada em
+# https://github.com/sponsors (exige dados fiscais/bancários no navegador).
+#
+# Alternativa sem Stripe / sem conta internacional — descomente e troque o
+# usuário quando criar a sua página:
+# ko_fi: seu-usuario
+# custom: ["https://ko-fi.com/seu-usuario"]
+
+github: [Devilstar333]

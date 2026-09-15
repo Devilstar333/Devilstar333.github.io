@@ -1,0 +1,9 @@
+# System junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.log
+
+# Local editor/tooling
+.vscode/
+.idea/

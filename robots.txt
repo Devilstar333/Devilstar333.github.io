@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://devilstar333.github.io/llm-hardware-calculator/sitemap.xml

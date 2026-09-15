@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark light" />
+<title>Local LLM Hardware Calculator</title>
+<meta name="description" content="Will this local LLM fit in your GPU? Estimate VRAM usage, KV cache, offload to system RAM and generation speed for LM Studio, Ollama, llama.cpp and Roo Code." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://devilstar333.github.io/llm-hardware-calculator/" />
+<link rel="canonical" href="https://devilstar333.github.io/llm-hardware-calculator/" />
+<meta property="og:title" content="Local LLM Hardware Calculator" />
+<meta property="og:description" content="Will this local LLM fit in your GPU? Estimate VRAM, KV cache, offload to RAM and generation speed." />
+<meta property="og:locale" content="en_US" />
+<meta property="og:locale:alternate" content="pt_BR" />
+<meta name="twitter:card" content="summary" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Local LLM Hardware Calculator","applicationCategory":"UtilitiesApplication","operatingSystem":"Any (web browser)","url":"https://devilstar333.github.io/llm-hardware-calculator/","description":"Calculate whether a local LLM fits in your GPU VRAM or needs system RAM offload. Estimates memory, KV cache and generation speed for LM Studio, Ollama and llama.cpp.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // Config do Tailwind (Play CDN). Não é arquivo separado: precisa vir depois do CDN.
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace']
+        }
+      }
+    }
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  /* Anti-FOUC + base dos controles (o Play CDN injeta o CSS em runtime). */
+  html { color-scheme: dark; }
+  html:not(.dark) { color-scheme: light; }
+  body { background-color: #020617; color: #e2e8f0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+  html:not(.dark) body { background-color: #f8fafc; color: #0f172a; }
+  .field { width: 100%; border-radius: .75rem; border: 1px solid rgb(203 213 225); background: #fff; padding: .6rem .8rem; font-size: .95rem; color: inherit; outline: none; transition: border-color .15s, box-shadow .15s; }
+  .field::placeholder { color: rgb(148 163 184); }
+  html.dark .field { border-color: rgb(255 255 255 / .12); background: rgb(2 6 23 / .55); }
+  .field:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgb(16 185 129 / .25); }
+  .field-invalid { border-color: #f43f5e !important; box-shadow: 0 0 0 3px rgb(244 63 94 / .18); }
+  .chip { cursor: pointer; border-radius: 999px; border: 1px solid rgb(203 213 225); padding: .2rem .6rem; font-size: .72rem; font-weight: 600; transition: background-color .15s; }
+  html.dark .chip { border-color: rgb(255 255 255 / .12); }
+  .chip:hover { background: rgb(16 185 129 / .15); }
+  #bar-vram, #bar-ram { transition: width .35s ease; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type="number"] { -moz-appearance: textfield; }
+</style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
+<div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+  <div class="absolute -top-40 left-1/4 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl"></div>
+  <div class="absolute top-1/3 -right-32 h-96 w-96 rounded-full bg-sky-500/10 blur-3xl"></div>
+</div>
+
+<a href="#result" data-i18n="a11y.skip" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-emerald-500 focus:px-4 focus:py-2 focus:font-semibold focus:text-slate-950">Go to the result</a>
+
+<header class="border-b border-slate-200/80 dark:border-white/10">
+  <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5 sm:px-6">
+    <div class="flex items-center gap-3">
+      <div class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/30 dark:text-emerald-400">
+        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <rect x="4" y="4" width="16" height="16" rx="3" /><rect x="9" y="9" width="6" height="6" rx="1" />
+          <path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" />
+        </svg>
+      </div>
+      <div>
+        <h1 data-i18n="app.title" class="text-base font-extrabold tracking-tight sm:text-xl">Local LLM Hardware Calculator</h1>
+        <p data-i18n="app.subtitle" class="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">VRAM, offload and estimated speed — LM Studio, Ollama, llama.cpp, Roo Code</p>
+      </div>
+    </div>
+    <div class="flex shrink-0 items-center gap-2">
+      <button id="lang-toggle" type="button" data-i18n-attr="title:a11y.langTitle" aria-label="Switch to Portuguese" title="Switch language" class="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3.6 9h16.8M3.6 15h16.8" /><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z" /></svg>
+        <span id="lang-label">PT</span>
+      </button>
+      <button id="theme-toggle" type="button" data-i18n-attr="aria-label:a11y.theme,title:a11y.themeTitle" aria-label="Toggle light/dark theme" title="Toggle theme" class="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10">
+      <svg id="icon-sun" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+      <svg id="icon-moon" class="hidden h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" /></svg>
+      </button>
+    </div>
+  </div>
+</header>
+<main class="mx-auto grid max-w-6xl items-start gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+  <!-- ================= FORMULÁRIO ================= -->
+  <form id="hw-form" novalidate class="space-y-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-900/5 dark:border-white/10 dark:bg-slate-900/60 dark:shadow-black/20 sm:p-6">
+    <div>
+      <h2 data-i18n="form.heading" class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Your hardware</h2>
+      <p data-i18n="form.subheading" class="mt-1.5 text-sm text-slate-500 dark:text-slate-400">The result recalculates automatically as you change any value.</p>
+    </div>
+
+    <div class="grid gap-5 sm:grid-cols-2">
+      <div>
+        <label for="ram" class="mb-1.5 flex items-baseline justify-between gap-2 text-sm font-semibold">
+          <span data-i18n="form.ram">System RAM (GB)</span><span id="ram-usable" class="font-mono text-[11px] font-normal text-slate-400">—</span>
+        </label>
+        <input id="ram" name="ram" type="number" inputmode="decimal" min="1" max="4096" step="1" placeholder="32" value="32" class="field" />
+        <p id="ram-err" class="mt-1.5 hidden text-xs font-medium text-rose-500"></p>
+      </div>
+
+      <div>
+        <label for="vram" class="mb-1.5 flex items-baseline justify-between gap-2 text-sm font-semibold">
+          <span data-i18n="form.vram">GPU VRAM (GB)</span><span id="vram-usable" class="font-mono text-[11px] font-normal text-slate-400">—</span>
+        </label>
+        <input id="vram" name="vram" type="number" inputmode="decimal" min="0" max="512" step="1" placeholder="12" value="12" class="field" />
+        <p id="vram-err" class="mt-1.5 hidden text-xs font-medium text-rose-500"></p>
+      </div>
+    </div>
+
+    <div>
+      <label for="params" data-i18n="form.params" class="mb-1.5 block text-sm font-semibold">Model size (billions of parameters)</label>
+      <input id="params" name="params" type="number" inputmode="decimal" min="0.1" max="5000" step="0.1" placeholder="8" value="24" class="field" />
+      <div class="mt-2 flex flex-wrap items-center gap-1.5">
+        <span data-i18n="form.ex" class="mr-0.5 text-[11px] text-slate-400">E.g.:</span>
+        <button type="button" class="chip preset" data-params="1.5">1.5B</button>
+        <button type="button" class="chip preset" data-params="3.8">3.8B</button>
+        <button type="button" class="chip preset" data-params="8">8B</button>
+        <button type="button" class="chip preset" data-params="12">12B</button>
+        <button type="button" class="chip preset" data-params="24">24B</button>
+        <button type="button" class="chip preset" data-params="32">32B</button>
+        <button type="button" class="chip preset" data-params="70">70B</button>
+        <button type="button" class="chip preset" data-params="123">123B</button>
+        <button type="button" class="chip preset" data-params="405">405B</button>
+      </div>
+      <p id="params-err" class="mt-1.5 hidden text-xs font-medium text-rose-500"></p>
+    </div>
+
+    <div>
+      <label for="quant" data-i18n="form.quant" class="mb-1.5 block text-sm font-semibold">Quantization</label>
+      <select id="quant" name="quant" class="field">
+        <option value="q4_k_m" data-i18n="quant.q4_k_m" selected>Q4_K_M (4.5 bits)</option>
+        <option value="q6_k" data-i18n="quant.q6_k">Q6_K (6.5 bits)</option>
+        <option value="q8_0" data-i18n="quant.q8_0">Q8_0 (8.5 bits)</option>
+        <option value="fp16" data-i18n="quant.fp16">FP16 (16 bits)</option>
+      </select>
+      <p data-i18n="form.quantHint" class="mt-1.5 text-[11px] text-slate-400">Effective bits per weight (they already account for the mixed precision of the K-quants).</p>
+    </div>
+    <details id="advanced" class="group rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+      <summary class="cursor-pointer select-none text-sm font-semibold marker:content-['']">
+        <span class="inline-flex items-center gap-2">
+          <svg class="h-4 w-4 text-slate-400 transition group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+          <span data-i18n="form.advanced">Advanced settings</span> <span data-i18n="form.advancedHint" class="font-normal text-slate-400">(context, reserves)</span>
+        </span>
+      </summary>
+      <div class="mt-4 space-y-5">
+        <div>
+          <label for="ctx" class="mb-1.5 flex items-baseline justify-between gap-2 text-sm font-semibold">
+            <span data-i18n="form.ctx">Context (tokens)</span><span id="kv-size" class="font-mono text-[11px] font-normal text-slate-400">—</span>
+          </label>
+          <select id="ctx" name="ctx" class="field">
+            <option value="2048" data-i18n="ctx.2048">2,048</option>
+            <option value="4096" data-i18n="ctx.4096">4,096</option>
+            <option value="8192" data-i18n="ctx.8192" selected>8,192</option>
+            <option value="16384" data-i18n="ctx.16384">16,384</option>
+            <option value="32768" data-i18n="ctx.32768">32,768</option>
+            <option value="65536" data-i18n="ctx.65536">65,536</option>
+            <option value="131072" data-i18n="ctx.131072">131,072</option>
+          </select>
+          <p data-i18n="form.ctxHint" class="mt-1.5 text-[11px] text-slate-400">The KV cache takes extra VRAM/RAM that grows with the context — in practice it is the #1 cause of OOM after the weights.</p>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="vram-reserve" class="mb-1.5 flex items-baseline justify-between gap-2 text-sm font-semibold">
+              <span data-i18n="form.vramReserve">VRAM reserve (GB)</span><span data-i18n="form.vramReserveHint" class="font-mono text-[11px] font-normal text-slate-400">display</span>
+            </label>
+            <input id="vram-reserve" type="number" inputmode="decimal" min="0" max="8" step="0.25" value="0.75" class="field" />
+            <p id="vram-reserve-err" class="mt-1.5 hidden text-xs font-medium text-rose-500"></p>
+          </div>
+          <div>
+            <label for="ram-reserve" class="mb-1.5 flex items-baseline justify-between gap-2 text-sm font-semibold">
+              <span data-i18n="form.ramReserve">RAM reserve (GB)</span><span data-i18n="form.ramReserveHint" class="font-mono text-[11px] font-normal text-slate-400">OS + apps</span>
+            </label>
+            <input id="ram-reserve" type="number" inputmode="decimal" min="0" max="32" step="0.5" value="2.5" class="field" />
+            <p id="ram-reserve-err" class="mt-1.5 hidden text-xs font-medium text-rose-500"></p>
+          </div>
+        </div>
+
+        <label for="strict" class="flex cursor-pointer items-start gap-3 rounded-lg bg-white/70 p-3 text-xs leading-relaxed text-slate-600 ring-1 ring-slate-200 dark:bg-white/[0.04] dark:text-slate-300 dark:ring-white/10">
+          <input id="strict" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-emerald-500" />
+          <span data-i18n="form.strict" data-i18n-html="1"><strong class="font-semibold">Community simple formula:</strong> ignores the KV cache and the reserves, using only <code class="font-mono">weights × 1.2</code> (20% overhead) to classify.</span>
+        </label>
+      </div>
+    </details>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <button type="submit" class="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        <span data-i18n="form.submit">Calculate</span>
+      </button>
+      <button id="reset" type="button" data-i18n="form.reset" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10">Restore defaults</button>
+    </div>
+    <p data-i18n="form.defaults" class="text-[11px] leading-relaxed text-slate-400">Preset defaults: 32 GB RAM · 12 GB VRAM · 24B · Q4_K_M (the typical setup for LM Studio / Roo Code users).</p>
+    <p id="form-status" class="sr-only"></p>
+  </form>
+
+  <!-- ================= RESULTADO ================= -->
+  <section id="result" aria-live="polite" class="space-y-4"></section>
+</main>
+<footer class="mx-auto max-w-6xl px-4 pb-12 sm:px-6">
+  <div class="rounded-2xl border border-slate-200 bg-white/70 p-5 text-xs leading-relaxed text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">
+    <h2 data-i18n="footer.heading" class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">How these numbers are estimated</h2>
+    <ul class="list-disc space-y-1.5 pl-5">
+      <li data-i18n="footer.b1" data-i18n-html="1"><code class="font-mono">Weights = parameters (B) × effective bits ÷ 8</code> — Q4_K_M ≈ 4.5 bits/weight, Q6_K ≈ 6.5, Q8_0 ≈ 8.5, FP16 = 16.</li>
+      <li data-i18n="footer.b2" data-i18n-html="1"><code class="font-mono">Overhead = 20% of the weights + 0.6 GB</code> of compute/runtime buffers (CUDA / Metal / ROCm).</li>
+      <li data-i18n="footer.b3" data-i18n-html="1"><code class="font-mono">KV cache ≈ 0.007 GB × billions of parameters × (context ÷ 1024)</code>, calibrated on GQA models.</li>
+      <li data-i18n="footer.b4">Usable VRAM = VRAM − display reserve; usable RAM = RAM − OS and app reserve.</li>
+      <li data-i18n="footer.b5">Speed ≈ effective memory bandwidth (GPU ~600 GB/s, DDR5 ~80 GB/s) ÷ total memory, capped at 150 tok/s.</li>
+    </ul>
+    <p data-i18n="footer.note" class="mt-3">These are approximations: MoE architectures, quantized KV cache, layer-split multi-GPU and prompt processing are not modeled. Use them as an order of magnitude to decide what to download, not as a guarantee. None of the data you type leaves your browser — the whole calculation runs client-side.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------
+     DADOS / HIPÓTESES DO CÁLCULO
+     Adicionar uma quantização nova = adicionar uma linha em QUANTS.
+     (mantido em ordem crescente de bits: serve para sugerir a melhor
+      quantização que ainda caberia 100% na VRAM)
+  --------------------------------------------------------------- */
+  var QUANTS = [
+    { id: 'q4_k_m', label: 'Q4_K_M (4.5 bits)', bits: 4.5, compact: 'Q4_K_M' },
+    { id: 'q6_k',   label: 'Q6_K (6.5 bits)',   bits: 6.5, compact: 'Q6_K' },
+    { id: 'q8_0',   label: 'Q8_0 (8.5 bits)',   bits: 8.5, compact: 'Q8_0' },
+    { id: 'fp16',   label: 'FP16 (16 bits)',    bits: 16,  compact: 'FP16' }
+  ];
+
+  var DEFAULTS = {
+    ram: 32, vram: 12, params: 24, quant: 'q4_k_m', ctx: 8192,
+    vramReserve: 0.75, ramReserve: 2.5, strict: false
+  };
+
+  var MODEL = {
+    overheadPct: 0.20,    // overhead de contexto/sistema sobre os pesos (padrão da comunidade)
+    runtimeGB: 0.60,      // buffers fixos de compute/runtime (CUDA/Metal/ROCm)
+    kvPerBPer1k: 0.007,   // GB de KV cache por 1B de params por 1k de contexto (GQA)
+    vramBandwidth: 600,   // GB/s típico de GPU consumer
+    ramBandwidth: 80      // GB/s típico de DDR5 dual channel
+  };
+
+  var STORAGE_KEY = 'llm-hardware-calc:prefs';
+
+  /* ===================== IDIOMAS (i18n) =====================
+     Inglês é o idioma padrão; português é a tradução.
+     Todo texto visível vive aqui: o HTML estático usa data-i18n="chave"
+     (mais data-i18n-html="1" quando o texto contém marcação) e o JS usa t('chave').
+     Placeholders são {assim} e preenchidos por t('chave', { assim: valor }).
+  ------------------------------------------------------------ */
+  var LANGS = ['en', 'pt'];
+  var LANG_TAG = { en: 'en', pt: 'pt-BR' };
+  var LOCALE = { en: 'en-US', pt: 'pt-BR' };
+  var OG_LOCALE = { en: 'en_US', pt: 'pt_BR' };
+  var uiLang = 'en';      // definido em init(): URL ?lang= > preferências salvas > padrão (en)
+  var debugI18n = false;  // ?debug=1 lista chaves ausentes no console
+  var missingKeys = [];
+
+  var EN = {
+    'meta.title': 'Local LLM Hardware Calculator',
+    'meta.description': 'Will this local LLM fit in your GPU? Estimate VRAM usage, KV cache, offload to system RAM and generation speed for LM Studio, Ollama, llama.cpp and Roo Code.',
+    'meta.ogTitle': 'Local LLM Hardware Calculator',
+    'meta.ogDescription': 'Will this local LLM fit in your GPU? Estimate VRAM, KV cache, offload to RAM and generation speed.',
+    'a11y.skip': 'Go to the result',
+    'a11y.theme': 'Toggle light/dark theme',
+    'a11y.themeTitle': 'Toggle theme',
+    'a11y.langTitle': 'Switch language',
+    'a11y.langToPt': 'Switch to Portuguese',
+    'a11y.langToEn': 'Switch to English',
+    'a11y.copyLabel': 'Summary to copy manually',
+    'app.title': 'Local LLM Hardware Calculator',
+    'app.subtitle': 'VRAM, offload and estimated speed — LM Studio, Ollama, llama.cpp, Roo Code',
+    'form.heading': 'Your hardware',
+    'form.subheading': 'The result recalculates automatically as you change any value.',
+    'form.ram': 'System RAM (GB)',
+    'form.vram': 'GPU VRAM (GB)',
+    'form.params': 'Model size (billions of parameters)',
+    'form.ex': 'E.g.:',
+    'form.quant': 'Quantization',
+    'form.quantHint': 'Effective bits per weight (they already account for the mixed precision of the K-quants).',
+    'form.advanced': 'Advanced settings',
+    'form.advancedHint': '(context, reserves)',
+    'form.ctx': 'Context (tokens)',
+    'form.ctxHint': 'The KV cache takes extra VRAM/RAM that grows with the context — in practice it is the #1 cause of OOM after the weights.',
+    'form.vramReserve': 'VRAM reserve (GB)',
+    'form.vramReserveHint': 'display',
+    'form.ramReserve': 'RAM reserve (GB)',
+    'form.ramReserveHint': 'OS + apps',
+    'form.strict': '<strong class="font-semibold">Community simple formula:</strong> ignores the KV cache and the reserves, using only <code class="font-mono">weights × 1.2</code> (20% overhead) to classify.',
+    'form.submit': 'Calculate',
+    'form.reset': 'Restore defaults',
+    'form.defaults': 'Preset defaults: 32 GB RAM · 12 GB VRAM · 24B · Q4_K_M (the typical setup for LM Studio / Roo Code users).',
+    'form.usable': 'usable {size}',
+    'form.kv': '{size} of KV cache',
+    'ctx.2048': '2,048',
+    'ctx.4096': '4,096',
+    'ctx.8192': '8,192',
+    'ctx.16384': '16,384',
+    'ctx.32768': '32,768',
+    'ctx.65536': '65,536',
+    'ctx.131072': '131,072',
+    'quant.q4_k_m': 'Q4_K_M (4.5 bits)',
+    'quant.q6_k': 'Q6_K (6.5 bits)',
+    'quant.q8_0': 'Q8_0 (8.5 bits)',
+    'quant.fp16': 'FP16 (16 bits)',
+    'field.ram': 'System RAM',
+    'field.vram': 'GPU VRAM',
+    'field.params': 'Model size',
+    'field.vramReserve': 'VRAM reserve',
+    'field.ramReserve': 'RAM reserve',
+    'errors.empty': '{label}: enter a value (default {def}).',
+    'errors.invalid': '{label}: invalid numeric value.',
+    'errors.min': '{label}: the minimum is {min}.',
+    'errors.max': '{label}: the maximum is {max}.',
+    'verdict.vram.title': 'Yes — it fits entirely in GPU VRAM',
+    'verdict.vram.tag': '100% VRAM',
+    'verdict.vram.detail': 'The whole model ({total}) stays on the GPU. This is the ideal case: maximum speed and no traffic over the system RAM.',
+    'verdict.cpu.title': 'It runs on the CPU only (system RAM)',
+    'verdict.cpu.tag': 'CPU/RAM',
+    'verdict.cpu.detail': 'There is no usable VRAM, so everything goes to the system RAM. It works, but speed drops a lot: expect this only for testing.',
+    'verdict.offload.title': 'Yes — it needs to split the load (offload)',
+    'verdict.offload.tag': 'GPU + RAM offload',
+    'verdict.offload.detail': 'About {vram} stay in VRAM and {ram} spill over to the system RAM. Tune the split with GPU offload / n_gpu_layers: the more layers on the GPU, the faster.',
+    'verdict.exceed.title': 'No — it exceeds RAM + VRAM',
+    'verdict.exceed.tag': "Won't run",
+    'verdict.exceed.detail': 'You are about {deficit} short of the memory needed to load this model with this context.',
+    'stat.weights': 'Model weights',
+    'stat.weightsSub': '{params}B × {bits} ÷ 8',
+    'stat.overhead': 'Overhead + buffers',
+    'stat.overheadSubStrict': '20% of the weights',
+    'stat.overheadSub': '20% of the weights + 0.6 GB',
+    'stat.kv': 'KV cache',
+    'stat.kvSkipped': 'ignored in simple mode',
+    'stat.kvSub': 'context of {ctx} tokens',
+    'stat.total': 'Total required',
+    'stat.totalSub': 'usable capacity of {cap}',
+    'card.where': 'Where the memory will be used',
+    'card.copy': 'Copy summary',
+    'card.modeStrict': 'Mode: simple community formula (weights × 1.2)',
+    'card.modeDetailed': 'Mode: detailed — overhead + KV cache + reserves',
+    'card.summary': '<span class="font-mono font-semibold">{params}B</span> <span>·</span> <span class="font-mono">{quant} ({bits} bits/weight)</span> <span>·</span> <span>context <span class="font-mono">{ctx}</span></span> <span>·</span> <span><span class="font-mono">{ram} GB</span> RAM / <span class="font-mono">{vram} GB</span> VRAM</span>',
+    'legend.vram': 'VRAM',
+    'legend.ram': 'System RAM',
+    'legend.missing': 'Missing',
+    'bar.vram': 'GPU VRAM (usable)',
+    'bar.ram': 'System RAM (usable)',
+    'bar.vramNote': '{pct} of the usable VRAM',
+    'bar.ramNote': '{pct} of the usable RAM',
+    'bar.noVram': 'no usable VRAM',
+    'bar.noRam': 'no usable RAM',
+    'speed.heading': 'Estimated speed (generation)',
+    'speed.footnote': 'Rough estimate, just to give an order of magnitude.',
+    'speed.whyOffload': 'Weights in VRAM run at ~{vramBw} GB/s; layers pushed to offload drop to the ~{ramBw} GB/s of DDR5 — that is what makes offload expensive.',
+    'speed.whyVram': 'Everything in VRAM, at ~{vramBw} GB/s of bandwidth. Small models can be compute-bound, so treat this as an optimistic ceiling.',
+    'speed.whyRam': 'Everything in the system RAM, at ~{ramBw} GB/s of DDR5: this is the slowest case. If you have a dedicated GPU, keep at least some layers in VRAM.',
+    'tier.fastest': 'Very fast',
+    'tier.fast': 'Fast',
+    'tier.usable': 'Usable',
+    'tier.slow': 'Slow',
+    'tier.verySlow': 'Very slow',
+    'tip.tight.title': 'It fits, but with little headroom',
+    'tip.tight.body': 'The model uses {pct} of the usable VRAM. Fragmentation and a slightly larger context can cause OOM: lower the context or free up the GPU (close games and the browser).',
+    'tip.suggestion.title': 'How it would fit 100% in VRAM',
+    'tip.suggestion.body': 'With <strong>{quant}</strong> the footprint drops to <strong>{total}</strong> (weights of {weights}) and the model runs entirely on the GPU, keeping the {ctx} token context.',
+    'tip.noQuantFits.title': 'No quantization fits entirely in VRAM',
+    'tip.noQuantFits.body': 'Even at Q4_K_M the model uses {pct} of the usable VRAM. Offload works, but expect only a few tokens/s. Lowering the context frees memory; at this level a smaller model pays off more.',
+    'tip.noVram.title': 'No usable VRAM available',
+    'tip.noVram.body': 'With {vram} GB of VRAM (minus the display reserve) there is no VRAM left for the model: everything goes to RAM. If you have a dedicated GPU, check whether it is selected in LM Studio/Ollama.',
+    'tip.exceed.title': 'What to do now',
+    'tip.exceed.body': 'You are {deficit} short. Try: a lower quantization (Q4_K_M), a smaller context (use 4,096 instead of {ctx}), a model with fewer parameters, or more RAM/VRAM. Alternative: run it on the CPU with spare RAM — it works, just very slowly.',
+    'empty.title': 'Fill in the form fields',
+    'empty.body': 'Enter RAM, VRAM, model size and quantization to see whether the model runs 100% on the GPU, needs offload, or exceeds the total capacity.',
+    'copy.done': 'Summary copied ✓',
+    'copy.manual': 'Select and copy with Ctrl+C',
+    'status.fix': 'Fix the highlighted fields to see the result.',
+    'summary.title': 'Local LLM Hardware Calculator',
+    'summary.hardware': 'Hardware: {ram} GB RAM · {vram} GB VRAM',
+    'summary.model': 'Model: {params}B · {quant} ({bits} bits/weight) · context {ctx} tokens',
+    'summary.weights': 'Weights: {v}',
+    'summary.overhead': 'Overhead + buffers: {v}',
+    'summary.kv': 'KV cache (context): {v}',
+    'summary.total': 'Total required: {v}',
+    'summary.capacity': 'Usable capacity: {vram} VRAM + {ram} RAM = {cap}',
+    'summary.verdict': 'Verdict: {tag} — {title}',
+    'summary.deficit': 'Deficit: {v}',
+    'summary.distribution': 'Distribution: {vram} in VRAM ({pct}) · {ram} in RAM',
+    'summary.speed': 'Estimated speed: ~{tps} tok/s ({tier})',
+    'summary.suggestion': 'Suggestion: {quant} would fit 100% in VRAM with this hardware and context.',
+    'summary.suggestionNone': 'Suggestion: not even the smallest supported quantization fits — use a smaller model, reduce the context, or add RAM/VRAM.',
+    'summary.tight': 'Note: it fits in VRAM with little headroom — reduce the context to avoid OOM.',
+    'summary.share': 'Share: {url}',
+    'footer.heading': 'How these numbers are estimated',
+    'footer.b1': '<code class="font-mono">Weights = parameters (B) × effective bits ÷ 8</code> — Q4_K_M ≈ 4.5 bits/weight, Q6_K ≈ 6.5, Q8_0 ≈ 8.5, FP16 = 16.',
+    'footer.b2': '<code class="font-mono">Overhead = 20% of the weights + 0.6 GB</code> of compute/runtime buffers (CUDA / Metal / ROCm).',
+    'footer.b3': '<code class="font-mono">KV cache ≈ 0.007 GB × billions of parameters × (context ÷ 1024)</code>, calibrated on GQA models.',
+    'footer.b4': 'Usable VRAM = VRAM − display reserve; usable RAM = RAM − OS and app reserve.',
+    'footer.b5': 'Speed ≈ effective memory bandwidth (GPU ~600 GB/s, DDR5 ~80 GB/s) ÷ total memory, capped at 150 tok/s.',
+    'footer.note': 'These are approximations: MoE architectures, quantized KV cache, layer-split multi-GPU and prompt processing are not modeled. Use them as an order of magnitude to decide what to download, not as a guarantee. None of the data you type leaves your browser — the whole calculation runs client-side.'
+
+  };
+
+  var PT = {
+    'meta.title': 'Calculadora de Hardware para LLM Local',
+    'meta.description': 'Descubra se um LLM local roda na sua GPU: estimativa de VRAM, KV cache, offload para a RAM e velocidade de geração.',
+    'meta.ogTitle': 'Calculadora de Hardware para LLM Local',
+    'meta.ogDescription': 'Descubra se um LLM local roda na sua GPU: estimativa de VRAM, KV cache, offload para a RAM e velocidade.',
+    'a11y.skip': 'Ir para o resultado',
+    'a11y.theme': 'Alternar tema claro/escuro',
+    'a11y.themeTitle': 'Alternar tema',
+    'a11y.langTitle': 'Mudar idioma',
+    'a11y.langToPt': 'Mudar para português',
+    'a11y.langToEn': 'Mudar para inglês',
+    'a11y.copyLabel': 'Resumo para copiar manualmente',
+    'app.title': 'Calculadora de Hardware para LLM Local',
+    'app.subtitle': 'VRAM, offload e velocidade estimada — LM Studio, Ollama, llama.cpp, Roo Code',
+    'form.heading': 'Seu hardware',
+    'form.subheading': 'O resultado é recalculado automaticamente a cada alteração.',
+    'form.ram': 'System RAM (GB)',
+    'form.vram': 'GPU VRAM (GB)',
+    'form.params': 'Tamanho do modelo (bilhões de parâmetros)',
+    'form.ex': 'Ex.:',
+    'form.quant': 'Quantização',
+    'form.quantHint': 'Bits efetivos por peso (já consideram a mistura de precisões das K-quants).',
+    'form.advanced': 'Ajustes avançados',
+    'form.advancedHint': '(contexto, reservas)',
+    'form.ctx': 'Contexto (tokens)',
+    'form.ctxHint': 'O KV cache consome VRAM/RAM extra que cresce com o contexto — na prática é a causa nº 1 de OOM depois dos pesos.',
+    'form.vramReserve': 'Reserva VRAM (GB)',
+    'form.vramReserveHint': 'display',
+    'form.ramReserve': 'Reserva RAM (GB)',
+    'form.ramReserveHint': 'SO + apps',
+    'form.strict': '<strong class="font-semibold">Fórmula simples da comunidade:</strong> ignora KV cache e reservas, usando só <code class="font-mono">pesos × 1,2</code> (20% de overhead) para classificar.',
+    'form.submit': 'Calcular',
+    'form.reset': 'Restaurar padrões',
+    'form.defaults': 'Padrões pré-preenchidos: 32 GB de RAM · 12 GB de VRAM · 24B · Q4_K_M (o cenário típico de quem usa LM Studio / Roo Code).',
+    'form.usable': 'útil {size}',
+    'form.kv': '{size} de KV cache',
+    'ctx.2048': '2.048',
+    'ctx.4096': '4.096',
+    'ctx.8192': '8.192',
+    'ctx.16384': '16.384',
+    'ctx.32768': '32.768',
+    'ctx.65536': '65.536',
+    'ctx.131072': '131.072',
+    'quant.q4_k_m': 'Q4_K_M (4,5 bits)',
+    'quant.q6_k': 'Q6_K (6,5 bits)',
+    'quant.q8_0': 'Q8_0 (8,5 bits)',
+    'quant.fp16': 'FP16 (16 bits)',
+    'field.ram': 'System RAM',
+    'field.vram': 'GPU VRAM',
+    'field.params': 'Tamanho do modelo',
+    'field.vramReserve': 'Reserva de VRAM',
+    'field.ramReserve': 'Reserva de RAM',
+    'errors.empty': '{label}: informe um valor (padrão {def}).',
+    'errors.invalid': '{label}: valor numérico inválido.',
+    'errors.min': '{label}: o mínimo é {min}.',
+    'errors.max': '{label}: o máximo é {max}.',
+    'verdict.vram.title': 'Sim — cabe 100% na VRAM da GPU',
+    'verdict.vram.tag': '100% VRAM',
+    'verdict.vram.detail': 'O modelo inteiro ({total}) fica na GPU. É o cenário ideal: velocidade máxima e nenhum tráfego pela RAM do sistema.',
+    'verdict.cpu.title': 'Roda apenas na CPU (RAM do sistema)',
+    'verdict.cpu.tag': 'CPU/RAM',
+    'verdict.cpu.detail': 'Não há VRAM útil disponível, então tudo vai para a RAM do sistema. Funciona, mas a velocidade cai muito: esperado apenas em cenários de teste.',
+    'verdict.offload.title': 'Sim — precisa dividir a carga (offload)',
+    'verdict.offload.tag': 'Offload GPU + RAM',
+    'verdict.offload.detail': 'Cerca de {vram} ficam na VRAM e {ram} vão para a RAM do sistema. Use GPU offload / n_gpu_layers para ajustar a divisão; quanto mais camadas na GPU, mais rápido.',
+    'verdict.exceed.title': 'Não — excede a capacidade de RAM + VRAM',
+    'verdict.exceed.tag': 'Não roda',
+    'verdict.exceed.detail': 'Faltam aproximadamente {deficit} de memória para carregar este modelo com esse contexto.',
+    'stat.weights': 'Pesos do modelo',
+    'stat.weightsSub': '{params}B × {bits} ÷ 8',
+    'stat.overhead': 'Overhead + buffers',
+    'stat.overheadSubStrict': '20% dos pesos',
+    'stat.overheadSub': '20% dos pesos + 0,6 GB',
+    'stat.kv': 'KV cache',
+    'stat.kvSkipped': 'ignorado no modo simples',
+    'stat.kvSub': 'contexto de {ctx} tokens',
+    'stat.total': 'Total necessário',
+    'stat.totalSub': 'capacidade útil de {cap}',
+    'card.where': 'Onde a memória vai ser usada',
+    'card.copy': 'Copiar resumo',
+    'card.modeStrict': 'Modo: fórmula simples (pesos × 1,2)',
+    'card.modeDetailed': 'Modo detalhado: overhead + KV cache + reservas',
+    'card.summary': '<span class="font-mono font-semibold">{params}B</span> <span>·</span> <span class="font-mono">{quant} ({bits} bits/peso)</span> <span>·</span> <span>contexto <span class="font-mono">{ctx}</span></span> <span>·</span> <span><span class="font-mono">{ram} GB</span> RAM / <span class="font-mono">{vram} GB</span> VRAM</span>',
+    'legend.vram': 'VRAM',
+    'legend.ram': 'RAM do sistema',
+    'legend.missing': 'Faltando',
+    'bar.vram': 'VRAM da GPU (útil)',
+    'bar.ram': 'RAM do sistema (útil)',
+    'bar.vramNote': '{pct} da VRAM útil',
+    'bar.ramNote': '{pct} da RAM útil',
+    'bar.noVram': 'sem VRAM útil',
+    'bar.noRam': 'sem RAM útil',
+    'speed.heading': 'Velocidade estimada (geração)',
+    'speed.footnote': 'Estimativa grosseira, só para ordenar de grandeza.',
+    'speed.whyOffload': 'Pesos na VRAM correm a ~{vramBw} GB/s; as camadas em offload caem para os ~{ramBw} GB/s da DDR5 — é isso que encarece o offload.',
+    'speed.whyVram': 'Tudo na VRAM, com ~{vramBw} GB/s de largura de banda. Modelos pequenos podem ficar limitados por compute, então trate isto como teto otimista.',
+    'speed.whyRam': 'Tudo na RAM do sistema, a ~{ramBw} GB/s de DDR5: é o cenário mais lento. Se houver GPU dedicada, deixe ao menos parte das camadas na VRAM.',
+    'tier.fastest': 'Muito rápido',
+    'tier.fast': 'Rápido',
+    'tier.usable': 'Usável',
+    'tier.slow': 'Lento',
+    'tier.verySlow': 'Muito lento',
+    'tip.tight.title': 'Cabe, mas com pouca folga',
+    'tip.tight.body': 'O modelo ocupa {pct} da VRAM útil. Fragmentação e um contexto um pouco maior podem causar OOM: abaixe o contexto ou deixe a GPU mais livre (feche jogos/navegador).',
+    'tip.suggestion.title': 'Como caberia 100% na VRAM',
+    'tip.suggestion.body': 'Com <strong>{quant}</strong> o consumo cai para <strong>{total}</strong> (pesos de {weights}) e o modelo passa a rodar inteiro na GPU, mantendo o contexto de {ctx} tokens.',
+    'tip.noQuantFits.title': 'Nenhuma quantização cabe toda na VRAM',
+    'tip.noQuantFits.body': 'Mesmo em Q4_K_M o modelo consome {pct} da VRAM útil. O offload funciona, mas espere poucos tokens/s. Reduzir o contexto libera memória; nesta faixa, um modelo menor rende mais.',
+    'tip.noVram.title': 'Sem VRAM útil disponível',
+    'tip.noVram.body': 'Com {vram} GB de VRAM (menos a reserva de display), não sobra VRAM para o modelo: tudo vai para a RAM. Se existir uma GPU dedicada, confira se ela está selecionada no LM Studio/Ollama.',
+    'tip.exceed.title': 'O que fazer agora',
+    'tip.exceed.body': 'Faltam {deficit}. Tente: quantização menor (Q4_K_M), contexto menor (use 4.096 em vez de {ctx}), um modelo de menos parâmetros, ou mais RAM/VRAM. Alternativa: rode na CPU com RAM sobrando — funciona, só que bem devagar.',
+    'empty.title': 'Preencha os campos do formulário',
+    'empty.body': 'Informe RAM, VRAM, tamanho do modelo e quantização para saber se ele roda 100% na GPU, se precisa de offload ou se excede a capacidade total.',
+    'copy.done': 'Resumo copiado ✓',
+    'copy.manual': 'Selecione e copie com Ctrl+C',
+    'status.fix': 'Corrija os campos destacados para ver o resultado.',
+    'summary.title': 'Calculadora de Hardware para LLM Local',
+    'summary.hardware': 'Hardware: {ram} GB RAM · {vram} GB VRAM',
+    'summary.model': 'Modelo: {params}B · {quant} ({bits} bits/peso) · contexto {ctx} tokens',
+    'summary.weights': 'Pesos: {v}',
+    'summary.overhead': 'Overhead + buffers: {v}',
+    'summary.kv': 'KV cache (contexto): {v}',
+    'summary.total': 'Total necessário: {v}',
+    'summary.capacity': 'Capacidade útil: {vram} VRAM + {ram} RAM = {cap}',
+    'summary.verdict': 'Veredicto: {tag} — {title}',
+    'summary.deficit': 'Déficit: {v}',
+    'summary.distribution': 'Distribuição: {vram} na VRAM ({pct}) · {ram} na RAM',
+    'summary.speed': 'Velocidade estimada: ~{tps} tok/s ({tier})',
+    'summary.suggestion': 'Sugestão: {quant} caberia 100% na VRAM com este hardware e contexto.',
+    'summary.suggestionNone': 'Sugestão: nem a menor quantização suportada cabe — use um modelo menor, reduza o contexto ou adicione RAM/VRAM.',
+    'summary.tight': 'Atenção: cabe na VRAM com pouca folga — reduza o contexto para evitar OOM.',
+    'summary.share': 'Compartilhe: {url}',
+    'footer.heading': 'Como os números são estimados',
+    'footer.b1': '<code class="font-mono">Pesos = parâmetros (B) × bits efetivos ÷ 8</code> — Q4_K_M ≈ 4,5 bits/peso, Q6_K ≈ 6,5, Q8_0 ≈ 8,5, FP16 = 16.',
+    'footer.b2': '<code class="font-mono">Overhead = 20% dos pesos + 0,6 GB</code> de buffers de compute/runtime (CUDA / Metal / ROCm).',
+    'footer.b3': '<code class="font-mono">KV cache ≈ 0,007 GB × bilhões de parâmetros × (contexto ÷ 1024)</code>, calibrado em modelos GQA.',
+    'footer.b4': 'VRAM útil = VRAM − reserva de display; RAM útil = RAM − reserva do SO e dos apps.',
+    'footer.b5': 'Velocidade ≈ largura de banda efetiva (GPU ~600 GB/s, DDR5 ~80 GB/s) ÷ memória total, limitada a 150 tok/s.',
+    'footer.note': 'São aproximações: arquiteturas MoE, quantização do KV cache, split por camadas em multi-GPU e prompt processing não são modelados. Use como ordem de grandeza para decidir o que baixar, não como garantia. Nenhum dado que você digita sai do seu navegador — o cálculo roda inteiro no client-side.'
+
+  };
+  var STRINGS = { en: EN, pt: PT };
+  /* Traduz uma chave. Se faltar, devolve a própria chave (aparece como bug na tela)
+     e registra em missingKeys, que o ?debug=1 imprime no console. */
+  function t(key, vars) {
+    var packs = [STRINGS[uiLang], STRINGS.en];
+    var out = null;
+    for (var i = 0; i < packs.length && out === null; i++) {
+      var pack = packs[i];
+      if (pack && typeof pack[key] === 'string') out = pack[key];
+    }
+    if (out === null) {
+      if (missingKeys.indexOf(key) < 0) missingKeys.push(key);
+      return key;
+    }
+    if (vars) {
+      out = out.replace(/\{(\w+)\}/g, function (m, k) {
+        return (vars[k] === undefined || vars[k] === null) ? m : String(vars[k]);
+      });
+    }
+    return out;
+  }
+
+  /* "4.5" em inglês, "4,5" em português. */
+  function bitsLabel(bits) {
+    return Number(bits).toLocaleString(LOCALE[uiLang], { maximumFractionDigits: 1 });
+  }
+
+  function setMeta(selector, content) {
+    var el = document.querySelector(selector);
+    if (el) el.setAttribute('content', content);
+  }
+
+  /* Aplica o idioma aos textos estáticos (data-i18n) e aos metadados do documento. */
+  function applyI18n() {
+    var i, j, nodes = document.querySelectorAll('[data-i18n]');
+    for (i = 0; i < nodes.length; i++) {
+      var val = t(nodes[i].getAttribute('data-i18n'));
+      if (nodes[i].getAttribute('data-i18n-html') === '1') nodes[i].innerHTML = val;
+      else nodes[i].textContent = val;
+    }
+    nodes = document.querySelectorAll('[data-i18n-attr]');
+    for (i = 0; i < nodes.length; i++) {
+      var specs = nodes[i].getAttribute('data-i18n-attr').split(',');
+      for (j = 0; j < specs.length; j++) {
+        var pair = specs[j].split(':');
+        if (pair.length === 2) nodes[i].setAttribute(pair[0].trim(), t(pair[1].trim()));
+      }
+    }
+    document.documentElement.lang = LANG_TAG[uiLang];
+    document.title = t('meta.title');
+    setMeta('meta[name="description"]', t('meta.description'));
+    setMeta('meta[property="og:title"]', t('meta.ogTitle'));
+    setMeta('meta[property="og:description"]', t('meta.ogDescription'));
+    setMeta('meta[property="og:locale"]', OG_LOCALE[uiLang]);
+    updateLangButton();
+    if (debugI18n && missingKeys.length) {
+      console.warn('[i18n] chaves ausentes em "' + uiLang + '": ' + missingKeys.join(', '));
+    }
+  }
+
+  /* O botão mostra o idioma de DESTINO: "PT" quando a interface está em inglês. */
+  function updateLangButton() {
+    var btn = document.getElementById('lang-toggle');
+    var lbl = document.getElementById('lang-label');
+    if (!btn || !lbl) return;
+    var target = uiLang === 'en' ? 'pt' : 'en';
+    lbl.textContent = target.toUpperCase();
+    var text = t(target === 'pt' ? 'a11y.langToPt' : 'a11y.langToEn');
+    btn.setAttribute('aria-label', text);
+    btn.setAttribute('title', text);
+  }
+
+  /* URL compartilhável com o idioma atual embutido (só faz sentido em http/https). */
+  function shareUrl() {
+    try {
+      if (!/^https?:$/.test(window.location.protocol)) return null;
+      var u = new URL(window.location.href);
+      u.searchParams.set('lang', uiLang);
+      return u.toString();
+    } catch (e) { return null; }
+  }
+
+
+  /* ======================= FUNÇÕES PURAS ======================= */
+
+  function num(v) {
+    if (typeof v === 'string') v = v.trim().replace(',', '.');
+    var n = Number(v);
+    return isFinite(n) ? n : NaN;
+  }
+
+  function quantFor(id) {
+    for (var i = 0; i < QUANTS.length; i++) { if (QUANTS[i].id === id) return QUANTS[i]; }
+    return QUANTS[0];
+  }
+
+  /* Memória necessária para pesos / KV cache / overhead.
+     Pesos (GB) = parâmetros (B) × bits ÷ 8 */
+  function footprint(params, bits, ctx, strict) {
+    var weights = (params * bits) / 8;
+    var kv = params * MODEL.kvPerBPer1k * (ctx / 1024);
+    var overhead = weights * MODEL.overheadPct + MODEL.runtimeGB;
+    var total = strict ? weights * (1 + MODEL.overheadPct) : weights + overhead + kv;
+    return {
+      weights: weights,
+      kv: strict ? 0 : kv,
+      overhead: strict ? weights * MODEL.overheadPct : overhead,
+      total: total
+    };
+  }
+
+  /* Estimativa de velocidade de geração (decode) por largura de banda
+     de memória: VRAM ~600 GB/s vs DDR5 ~80 GB/s. */
+  function estimateSpeed(total, vramUsed, ramUsed) {
+    if (!(total > 0)) return 0;
+    var wV = vramUsed / total, wR = ramUsed / total, eff;
+    if (wV > 0 && wR > 0) eff = 1 / (wV / MODEL.vramBandwidth + wR / MODEL.ramBandwidth);
+    else eff = wV > 0 ? MODEL.vramBandwidth : MODEL.ramBandwidth;
+    return Math.min(eff / total, 150); // modelos pequenos são limitados por compute
+  }
+
+  /* Faixa de velocidade: devolve a chave de i18n + o tom visual. */
+  function speedTier(tps) {
+    if (tps >= 45) return { tier: 'fastest', tone: 'emerald' };
+    if (tps >= 20) return { tier: 'fast', tone: 'emerald' };
+    if (tps >= 8) return { tier: 'usable', tone: 'amber' };
+    if (tps >= 3) return { tier: 'slow', tone: 'amber' };
+    return { tier: 'verySlow', tone: 'rose' };
+  }
+
+  function tierLabel(tier) { return t('tier.' + tier); }
+
+  function gb(n) { return (Math.round(n * 100) / 100).toFixed(2) + ' GB'; }
+  function pct(n) { return Math.round(n * 100) + '%'; }
+  function gb1(n) { return (Math.round(n * 10) / 10).toFixed(1) + ' GB'; }
+  function ctxLabel(n) { return Number(n).toLocaleString(LOCALE[uiLang]); }
+  /* ---------------- NÚCLEO DO CÁLCULO ---------------- */
+
+  /* hardware + modelo -> plano completo. Não toca no DOM. */
+  function computePlan(inp) {
+    var fp = footprint(inp.params, inp.bits, inp.ctx, inp.strict);
+    var usableVram = inp.strict ? inp.vram : Math.max(0, inp.vram - inp.vramReserve);
+    var usableRam = inp.strict ? inp.ram : Math.max(0, inp.ram - inp.ramReserve);
+    var capacity = usableVram + usableRam;
+
+    var verdict, vramUsed, ramUsed, deficit = 0;
+    if (usableVram > 0 && fp.total <= usableVram) {
+      verdict = 'vram'; vramUsed = fp.total; ramUsed = 0;
+    } else if (fp.total <= capacity) {
+      verdict = 'offload'; vramUsed = usableVram; ramUsed = fp.total - usableVram;
+    } else {
+      verdict = 'exceed'; vramUsed = usableVram; ramUsed = usableRam; deficit = fp.total - capacity;
+    }
+
+    // "Apertado": cabe na VRAM, mas sem folga (risco de OOM por fragmentação
+    // ou por um contexto um pouco maior do que o configurado).
+    var tight = verdict === 'vram' && fp.total > usableVram * 0.9;
+    var fill = usableVram > 0 ? Math.min(1, fp.total / usableVram) : 0;
+
+    return {
+      input: inp,
+      weights: fp.weights, overhead: fp.overhead, kv: fp.kv, total: fp.total,
+      usableVram: usableVram, usableRam: usableRam, capacity: capacity,
+      verdict: verdict, tight: tight,
+      vramUsed: vramUsed, ramUsed: ramUsed, deficit: deficit, fillVram: fill,
+      tps: verdict === 'exceed' ? 0 : estimateSpeed(fp.total, vramUsed, ramUsed),
+      suggestion: verdict === 'vram' ? null : bestQuantThatFits(inp)
+    };
+  }
+
+  /* Maior qualidade (mais bits) que ainda caberia 100% na VRAM. */
+  function bestQuantThatFits(inp) {
+    var usableVram = inp.strict ? inp.vram : Math.max(0, inp.vram - inp.vramReserve);
+    if (usableVram <= 0) return null;
+    var best = null;
+    for (var i = 0; i < QUANTS.length; i++) {
+      if (footprint(inp.params, QUANTS[i].bits, inp.ctx, inp.strict).total <= usableVram) best = QUANTS[i];
+    }
+    return best;
+  }
+
+  /* Textos dos veredictos (traduzidos em runtime). */
+  function verdictText(plan) {
+    var key = (plan.verdict === 'offload' && plan.vramUsed <= 0.01) ? 'cpu' : plan.verdict;
+    var vars = {
+      total: gb(plan.total),
+      vram: gb(plan.vramUsed),
+      ram: gb(plan.ramUsed),
+      deficit: gb(plan.deficit)
+    };
+    return {
+      title: t('verdict.' + key + '.title', vars),
+      tag: t('verdict.' + key + '.tag', vars),
+      detail: t('verdict.' + key + '.detail', vars)
+    };
+  }
+  /* Texto para o botão "copiar resumo" (colar em fóruns/comunidades). */
+  function buildSummary(plan) {
+    var q = quantFor(plan.input.quant);
+    var vt = verdictText(plan);
+    var tier = speedTier(plan.tps);
+    var L = [];
+    L.push(t('summary.title'));
+    L.push('');
+    L.push(t('summary.hardware', { ram: plan.input.ram, vram: plan.input.vram }));
+    L.push(t('summary.model', {
+      params: plan.input.params, quant: q.compact,
+      bits: bitsLabel(plan.input.bits), ctx: ctxLabel(plan.input.ctx)
+    }));
+    L.push(t(plan.input.strict ? 'card.modeStrict' : 'card.modeDetailed'));
+    L.push('');
+    L.push(t('summary.weights', { v: gb(plan.weights) }));
+    L.push(t('summary.overhead', { v: gb(plan.overhead) }));
+    if (!plan.input.strict) L.push(t('summary.kv', { v: gb(plan.kv) }));
+    L.push(t('summary.total', { v: gb(plan.total) }));
+    L.push(t('summary.capacity', { vram: gb(plan.usableVram), ram: gb(plan.usableRam), cap: gb(plan.capacity) }));
+    L.push('');
+    L.push(t('summary.verdict', { tag: vt.tag, title: vt.title }));
+    if (plan.verdict === 'exceed') {
+      L.push(t('summary.deficit', { v: gb(plan.deficit) }));
+    } else {
+      L.push(t('summary.distribution', {
+        vram: gb(plan.vramUsed), pct: pct(plan.vramUsed / plan.total), ram: gb(plan.ramUsed)
+      }));
+      L.push(t('summary.speed', { tps: Math.max(1, Math.round(plan.tps)), tier: tierLabel(tier.tier) }));
+    }
+    if (plan.suggestion) L.push(t('summary.suggestion', { quant: plan.suggestion.compact }));
+    else if (plan.verdict === 'exceed') L.push(t('summary.suggestionNone'));
+    if (plan.tight) L.push(t('summary.tight'));
+    var url = shareUrl();
+    if (url) { L.push(''); L.push(t('summary.share', { url: url })); }
+    return L.join('\n');
+  }
+  /* ===================== RENDERIZAÇÃO (DOM) ===================== */
+
+  var TONES = {
+    emerald: {
+      card: 'border-emerald-300/70 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/[0.06]',
+      icon: 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/30 dark:text-emerald-400',
+      badge: 'bg-emerald-500 text-slate-950',
+      accent: 'text-emerald-700 dark:text-emerald-300',
+      fill: 'bg-emerald-500'
+    },
+    amber: {
+      card: 'border-amber-300/70 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/[0.07]',
+      icon: 'bg-amber-500/15 text-amber-600 ring-1 ring-amber-500/30 dark:text-amber-400',
+      badge: 'bg-amber-400 text-slate-950',
+      accent: 'text-amber-700 dark:text-amber-300',
+      fill: 'bg-amber-500'
+    },
+    rose: {
+      card: 'border-rose-300/70 bg-rose-50/70 dark:border-rose-500/30 dark:bg-rose-500/[0.07]',
+      icon: 'bg-rose-500/15 text-rose-600 ring-1 ring-rose-500/30 dark:text-rose-400',
+      badge: 'bg-rose-500 text-white',
+      accent: 'text-rose-700 dark:text-rose-300',
+      fill: 'bg-rose-500'
+    }
+  };
+
+  var ICONS = {
+    vram: '<path d="M20 6 9 17l-5-5"/>',
+    offload: '<path d="M4 7h16M4 7l3-3M4 7l3 3"/><path d="M20 17H4m16 0-3-3m3 3-3 3"/>',
+    exceed: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.2 2.4 17.1A1.9 1.9 0 0 0 4 20h16a1.9 1.9 0 0 0 1.6-2.9L13.7 3.2a1.9 1.9 0 0 0-3.4 0Z"/>',
+    warn: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.2 2.4 17.1A1.9 1.9 0 0 0 4 20h16a1.9 1.9 0 0 0 1.6-2.9L13.7 3.2a1.9 1.9 0 0 0-3.4 0Z"/>',
+    cpu: '<rect x="4" y="4" width="16" height="16" rx="3"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>',
+    gauge: '<path d="M12 14 4.5 9.6"/><path d="M4.5 18a9 9 0 1 1 15 0"/>',
+    bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.4.9 1 .9 1.7v.4h5.2v-.4c0-.7.3-1.3.9-1.7A6 6 0 0 0 12 3Z"/>'
+  };
+
+  function svgIcon(paths, cls) {
+    return '<svg class="' + (cls || 'h-6 w-6') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
+  }
+
+  function emptyState() {
+    return '<div class="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-6 text-sm text-slate-500 dark:border-white/15 dark:bg-white/[0.02] dark:text-slate-400">' +
+      '<p class="font-semibold text-slate-600 dark:text-slate-300">' + t('empty.title') + '</p>' +
+      '<p class="mt-1">' + t('empty.body') + '</p></div>';
+  }
+
+  function stat(label, value, sub, accentClass) {
+    return '<div class="rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]">' +
+      '<p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">' + label + '</p>' +
+      '<p class="mt-1 font-mono text-lg font-bold ' + (accentClass || '') + '">' + value + '</p>' +
+      (sub ? '<p class="text-[11px] leading-tight text-slate-400">' + sub + '</p>' : '') + '</div>';
+  }
+
+  function bar(id, label, used, total, fillClass, note) {
+    var ratio = total > 0 ? Math.min(1, used / total) : 0;
+    return '<div>' +
+      '<div class="mb-1 flex items-baseline justify-between gap-2 text-xs">' +
+        '<span class="font-semibold">' + label + '</span>' +
+        '<span class="font-mono text-slate-400">' + gb1(used) + ' / ' + gb1(total) + (note ? ' · ' + note : '') + '</span>' +
+      '</div>' +
+      '<div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">' +
+        '<div id="' + id + '" class="h-full rounded-full ' + fillClass + '" style="width:' + (ratio * 100).toFixed(1) + '%"></div>' +
+      '</div></div>';
+  }
+
+  function legend(color, label, value) {
+    return '<span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full ' + color + '"></span>' +
+      label + ' · <span class="font-mono">' + value + '</span></span>';
+  }
+
+  /* Barra empilhada: quanto vai para a VRAM, quanto para a RAM e, no caso de
+     "não roda", quanto ficaria faltando. */
+  function distBar(plan) {
+    var total = plan.total > 0 ? plan.total : 1;
+    var vW = (plan.vramUsed / total) * 100, rW = (plan.ramUsed / total) * 100;
+    var dW = Math.max(0, (plan.deficit / total) * 100);
+    return '<div class="flex h-3.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">' +
+        '<div class="h-full bg-emerald-500" style="width:' + vW.toFixed(1) + '%"></div>' +
+        '<div class="h-full bg-sky-500" style="width:' + rW.toFixed(1) + '%"></div>' +
+        (dW > 0 ? '<div class="h-full bg-rose-500" style="width:' + dW.toFixed(1) + '%"></div>' : '') +
+      '</div>' +
+      '<div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">' +
+        legend('bg-emerald-500', t('legend.vram'), gb(plan.vramUsed)) +
+        legend('bg-sky-500', t('legend.ram'), gb(plan.ramUsed)) +
+        (dW > 0 ? legend('bg-rose-500', t('legend.missing'), gb(plan.deficit)) : '') +
+      '</div>';
+  }
+  /* Caixa de aviso/dica reutilizável. */
+  function noteBox(paths, kind, title, body) {
+    var map = {
+      ok: 'border-emerald-200 bg-emerald-50/80 text-emerald-800 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-200',
+      warn: 'border-amber-200 bg-amber-50/80 text-amber-800 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-200',
+      bad: 'border-rose-200 bg-rose-50/80 text-rose-800 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-200',
+      info: 'border-sky-200 bg-sky-50/80 text-sky-800 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200'
+    };
+    return '<div class="flex items-start gap-3 rounded-xl border p-3.5 text-xs leading-relaxed ' + map[kind] + '">' +
+      svgIcon(paths || ICONS.warn, 'h-4 w-4 shrink-0') +
+      '<div><p class="font-bold">' + title + '</p><p class="mt-0.5">' + body + '</p></div></div>';
+  }
+
+  function speedBlock(plan) {
+    var tier = speedTier(plan.tps);
+    var tone = TONES[tier.tone];
+    var shown = plan.tps >= 10 ? String(Math.round(plan.tps)) : plan.tps.toFixed(1);
+    var why;
+    if (plan.vramUsed > 0 && plan.ramUsed > 0) {
+      why = t('speed.whyOffload', { vramBw: MODEL.vramBandwidth, ramBw: MODEL.ramBandwidth });
+    } else if (plan.vramUsed > 0) {
+      why = t('speed.whyVram', { vramBw: MODEL.vramBandwidth, ramBw: MODEL.ramBandwidth });
+    } else {
+      why = t('speed.whyRam', { vramBw: MODEL.vramBandwidth, ramBw: MODEL.ramBandwidth });
+    }
+    return '<div class="rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">' +
+      '<div class="flex flex-wrap items-center justify-between gap-2">' +
+        '<p class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">' +
+          svgIcon(ICONS.gauge, 'h-4 w-4') + t('speed.heading') + '</p>' +
+        '<span class="rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ' + tone.badge + '">' + tierLabel(tier.tier) + '</span>' +
+      '</div>' +
+      '<p class="mt-2 font-mono text-2xl font-extrabold">~' + shown + ' <span class="text-sm font-semibold text-slate-400">tokens/s</span></p>' +
+      '<p class="mt-1 text-[11px] leading-relaxed text-slate-400">' + why + ' ' + t('speed.footnote') + '</p>' +
+      '</div>';
+  }
+
+  function suggestionBlock(plan) {
+    if (plan.verdict === 'vram' && !plan.tight) return '';
+
+    if (plan.verdict === 'vram' && plan.tight) {
+      return noteBox(ICONS.warn, 'warn', t('tip.tight.title'),
+        t('tip.tight.body', { pct: pct(plan.fillVram) }));
+    }
+
+    if (plan.suggestion) {
+      var alt = footprint(plan.input.params, plan.suggestion.bits, plan.input.ctx, plan.input.strict);
+      return noteBox(ICONS.bulb, 'ok', t('tip.suggestion.title'),
+        t('tip.suggestion.body', {
+          quant: plan.suggestion.compact,
+          total: gb(alt.total),
+          weights: gb(alt.weights),
+          ctx: ctxLabel(plan.input.ctx)
+        }));
+    }
+
+    if (plan.verdict === 'offload') {
+      var semVram = plan.usableVram <= 0;
+      return noteBox(ICONS.info, 'info',
+        t(semVram ? 'tip.noVram.title' : 'tip.noQuantFits.title'),
+        t(semVram ? 'tip.noVram.body' : 'tip.noQuantFits.body', {
+          vram: plan.input.vram,
+          pct: pct(plan.fillVram)
+        }));
+    }
+
+    return noteBox(ICONS.exceed, 'bad', t('tip.exceed.title'),
+      t('tip.exceed.body', { deficit: gb(plan.deficit), ctx: ctxLabel(plan.input.ctx) }));
+  }
+  /* Monta o card de resultado. plan === null -> estado vazio. */
+  function render(plan) {
+    var el = document.getElementById('result');
+    if (!plan) { el.innerHTML = emptyState(); return; }
+
+    var vt = verdictText(plan);
+    var tone = plan.verdict === 'exceed' ? TONES.rose : (plan.verdict === 'vram' ? TONES.emerald : TONES.amber);
+    var icon = plan.verdict === 'vram' ? ICONS.vram
+      : (plan.verdict === 'offload' ? (plan.vramUsed <= 0.01 ? ICONS.cpu || ICONS.offload : ICONS.offload) : ICONS.exceed);
+    var q = quantFor(plan.input.quant);
+    var bits = bitsLabel(plan.input.bits);
+    var html = '';
+
+    html += '<article class="rounded-2xl border p-5 shadow-xl shadow-slate-900/5 dark:shadow-black/20 sm:p-6 ' + tone.card + '">';
+
+    /* Cabeçalho: veredicto */
+    html += '<div class="flex items-start gap-4">' +
+        '<div class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl ' + tone.icon + '">' + svgIcon(icon) + '</div>' +
+        '<div class="min-w-0">' +
+          '<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ' + tone.badge + '">' + vt.tag + '</span>' +
+          '<h2 class="mt-2 text-lg font-extrabold leading-snug sm:text-xl">' + vt.title + '</h2>' +
+          '<p class="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">' + vt.detail + '</p>' +
+        '</div>' +
+      '</div>';
+
+    /* Resumo do que foi calculado */
+    html += '<div class="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">' +
+        t('card.summary', {
+          params: plan.input.params, quant: q.compact, bits: bits,
+          ctx: ctxLabel(plan.input.ctx), ram: plan.input.ram, vram: plan.input.vram
+        }) +
+      '</div>';
+
+    /* Números do cálculo */
+    html += '<div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">' +
+        stat(t('stat.weights'), gb(plan.weights), t('stat.weightsSub', { params: plan.input.params, bits: bits })) +
+        stat(t('stat.overhead'), gb(plan.overhead), t(plan.input.strict ? 'stat.overheadSubStrict' : 'stat.overheadSub')) +
+        stat(t('stat.kv'), plan.input.strict ? '—' : gb(plan.kv),
+          t(plan.input.strict ? 'stat.kvSkipped' : 'stat.kvSub', { ctx: ctxLabel(plan.input.ctx) })) +
+        stat(t('stat.total'), gb(plan.total), t('stat.totalSub', { cap: gb1(plan.capacity) }), tone.accent) +
+      '</div>';
+
+    /* Distribuição e barras de capacidade */
+    html += '<div class="mt-5 space-y-4 rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">' +
+        '<p class="text-xs font-bold uppercase tracking-wider text-slate-400">' + t('card.where') + '</p>' +
+        distBar(plan) +
+        '<div class="space-y-3">' +
+          bar('bar-vram', t('bar.vram'), plan.vramUsed, plan.usableVram, tone.fill,
+            plan.usableVram > 0 ? t('bar.vramNote', { pct: pct(Math.min(1, plan.vramUsed / plan.usableVram)) }) : t('bar.noVram')) +
+          bar('bar-ram', t('bar.ram'), plan.ramUsed, plan.usableRam, 'bg-sky-500',
+            plan.usableRam > 0 ? t('bar.ramNote', { pct: pct(Math.min(1, plan.ramUsed / plan.usableRam)) }) : t('bar.noRam')) +
+        '</div>' +
+      '</div>';
+
+    /* Velocidade e dicas */
+    html += '<div class="mt-5 space-y-3">';
+    if (plan.verdict !== 'exceed') html += speedBlock(plan);
+    html += suggestionBlock(plan);
+    html += '</div>';
+
+    /* Rodapé do card */
+    html += '<div class="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-200/80 pt-4 dark:border-white/10">' +
+        '<button type="button" data-copy class="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">' +
+          svgIcon('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>', 'h-4 w-4') +
+          t('card.copy') + '</button>' +
+        '<span id="copy-status" role="status" class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400"></span>' +
+        '<span class="ml-auto text-[11px] text-slate-400">' +
+          t(plan.input.strict ? 'card.modeStrict' : 'card.modeDetailed') +
+        '</span>' +
+      '</div>';
+
+    html += '</article>';
+    el.innerHTML = html;
+  }
+  /* ==================== ESTADO / DOM / EVENTOS ==================== */
+
+  var els = {};
+  var themeState = 'dark';
+  var lastPlan = null;
+  var feedbackTimer = null;
+
+  /* Nome lógico -> id real no HTML (kebab-case para os inputs do painel avançado). */
+  var ELEMENT_IDS = {
+    ram: 'ram', vram: 'vram', params: 'params', quant: 'quant', ctx: 'ctx',
+    vramReserve: 'vram-reserve', ramReserve: 'ram-reserve', strict: 'strict',
+    langToggle: 'lang-toggle'
+  };
+  var FIELD_KEYS = ['ram', 'vram', 'params', 'vramReserve', 'ramReserve'];
+
+  /* labelKey aponta para a chave de i18n: a mensagem é montada a cada validação. */
+  var FIELD_RULES = {
+    ram: { labelKey: 'field.ram', min: 1, max: 4096 },
+    vram: { labelKey: 'field.vram', min: 0, max: 512 },
+    params: { labelKey: 'field.params', min: 0.1, max: 5000 },
+    vramReserve: { labelKey: 'field.vramReserve', min: 0, max: 8 },
+    ramReserve: { labelKey: 'field.ramReserve', min: 0, max: 32 }
+  };
+
+  function setText(id, txt) {
+    var e = document.getElementById(id);
+    if (e) e.textContent = txt;
+  }
+
+  function showError(key, msg) {
+    var box = document.getElementById(ELEMENT_IDS[key] + '-err');
+    var input = els[key];
+    if (!box || !input) return;
+    box.textContent = msg || '';
+    if (msg) {
+      box.classList.remove('hidden');
+      input.classList.add('field-invalid');
+      input.setAttribute('aria-invalid', 'true');
+    } else {
+      box.classList.add('hidden');
+      input.classList.remove('field-invalid');
+      input.removeAttribute('aria-invalid');
+    }
+  }
+
+  function validate() {
+    var ok = true;
+    for (var i = 0; i < FIELD_KEYS.length; i++) {
+      var k = FIELD_KEYS[i], rule = FIELD_RULES[k], raw = els[k].value, v = num(raw), msg = '';
+      var label = t(rule.labelKey);
+      if (String(raw).trim() === '') msg = t('errors.empty', { label: label, def: DEFAULTS[k] });
+      else if (isNaN(v)) msg = t('errors.invalid', { label: label });
+      else if (v < rule.min) msg = t('errors.min', { label: label, min: rule.min });
+      else if (v > rule.max) msg = t('errors.max', { label: label, max: rule.max });
+      if (msg) ok = false;
+      showError(k, msg);
+    }
+    return ok;
+  }
+
+  function readForm() {
+    return {
+      ram: num(els.ram.value),
+      vram: num(els.vram.value),
+      params: num(els.params.value),
+      quant: els.quant.value,
+      ctx: num(els.ctx.value),
+      vramReserve: num(els.vramReserve.value),
+      ramReserve: num(els.ramReserve.value),
+      strict: els.strict.checked
+    };
+  }
+
+  /* Etiquetas de apoio: VRAM/RAM útil e tamanho do KV cache. */
+  function updateHints(f) {
+    var vr = isNaN(f.vramReserve) ? DEFAULTS.vramReserve : f.vramReserve;
+    var rr = isNaN(f.ramReserve) ? DEFAULTS.ramReserve : f.ramReserve;
+    setText('vram-usable', t('form.usable', { size: gb1(f.strict ? f.vram : Math.max(0, f.vram - vr)) }));
+    setText('ram-usable', t('form.usable', { size: gb1(f.strict ? f.ram : Math.max(0, f.ram - rr)) }));
+    if (!isNaN(f.params) && !isNaN(f.ctx)) {
+      setText('kv-size', t('form.kv', { size: gb1(f.params * MODEL.kvPerBPer1k * (f.ctx / 1024)) }));
+    } else {
+      setText('kv-size', '—');
+    }
+  }
+
+  function refresh() {
+    var f = readForm();
+    var ok = validate();
+    updateHints(f);
+    if (!ok) {
+      lastPlan = null;
+      render(null);
+      setText('form-status', t('status.fix'));
+      return;
+    }
+    var q = quantFor(f.quant);
+    var plan = computePlan({
+      ram: f.ram, vram: f.vram, params: f.params,
+      bits: q.bits, quant: q.id, ctx: f.ctx, strict: f.strict,
+      vramReserve: f.vramReserve, ramReserve: f.ramReserve
+    });
+    lastPlan = plan;
+    render(plan);
+    var vt = verdictText(plan);
+    setText('form-status', vt.tag + ' — ' + vt.title);
+  }
+  /* ---------------------------- TEMA ---------------------------- */
+
+  function applyTheme(theme) {
+    var dark = theme !== 'light';
+    themeState = dark ? 'dark' : 'light';
+    document.documentElement.classList.toggle('dark', dark);
+    var sun = document.getElementById('icon-sun');
+    var moon = document.getElementById('icon-moon');
+    if (sun) sun.classList.toggle('hidden', dark);
+    if (moon) moon.classList.toggle('hidden', !dark);
+  }
+
+  /* Troca de idioma: aplica nos textos estáticos e re-renderiza o card.
+     Como o plano é dado puro, não há recálculo nem risco para a matemática. */
+  function setLang(lang) {
+    uiLang = (lang === 'pt') ? 'pt' : 'en';
+    applyI18n();
+    refresh();
+  }
+
+  /* ------------------------- PERSISTÊNCIA ------------------------ */
+  /* localStorage pode falhar em file:// (origem opaca): tudo em try/catch. */
+
+  function loadPrefs() {
+    try {
+      var raw = window.localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function savePrefs() {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        theme: themeState,
+        lang: uiLang,
+        values: {
+          ram: els.ram.value, vram: els.vram.value, params: els.params.value,
+          quant: els.quant.value, ctx: els.ctx.value,
+          vramReserve: els.vramReserve.value, ramReserve: els.ramReserve.value,
+          strict: els.strict.checked
+        }
+      }));
+    } catch (e) { /* sem persistência: o app segue funcionando */ }
+  }
+
+  /* Deep-link (também usado para validar cenários):
+     index.html?ram=32&vram=12&params=24&quant=q4_k_m&ctx=8192&theme=light */
+  function urlOverrides() {
+    var out = {};
+    try {
+      var sp = new URLSearchParams(window.location.search);
+      var map = { ram: 'ram', vram: 'vram', params: 'params', quant: 'quant', ctx: 'ctx', vramreserve: 'vramReserve', ramreserve: 'ramReserve' };
+      for (var key in map) { if (sp.has(key)) out[map[key]] = sp.get(key); }
+      if (sp.has('theme')) out.theme = sp.get('theme');
+      if (sp.has('lang')) out.lang = sp.get('lang');
+      if (sp.get('debug') === '1') out.debug = true;
+      if (sp.has('strict')) out.strict = (sp.get('strict') === '1' || sp.get('strict') === 'true');
+    } catch (e) { /* ignora */ }
+    return out;
+  }
+
+  function setValues(v) {
+    if (!v) return;
+    var keys = ['ram', 'vram', 'params', 'quant', 'ctx', 'vramReserve', 'ramReserve'];
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (v[k] === undefined || v[k] === null || v[k] === '') continue;
+      els[k].value = v[k];
+    }
+    if (typeof v.strict === 'boolean') els.strict.checked = v.strict;
+  }
+
+  function applyDefaults() {
+    els.ram.value = DEFAULTS.ram;
+    els.vram.value = DEFAULTS.vram;
+    els.params.value = DEFAULTS.params;
+    els.quant.value = DEFAULTS.quant;
+    els.ctx.value = DEFAULTS.ctx;
+    els.vramReserve.value = DEFAULTS.vramReserve;
+    els.ramReserve.value = DEFAULTS.ramReserve;
+    els.strict.checked = DEFAULTS.strict;
+  }
+  /* ---------------------- COPIAR RESUMO ---------------------- */
+
+  function feedback(msg) {
+    var s = document.getElementById('copy-status');
+    if (!s) return;
+    s.textContent = msg;
+    if (feedbackTimer) window.clearTimeout(feedbackTimer);
+    feedbackTimer = window.setTimeout(function () { if (s) s.textContent = ''; }, 4000);
+  }
+
+  function copySummary() {
+    if (!lastPlan) return;
+    var text = buildSummary(lastPlan);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { feedback(t('copy.done')); },
+        function () { manualCopy(text); }
+      );
+    } else {
+      manualCopy(text);
+    }
+  }
+
+  /* Fallback (file:// nem sempre é contexto seguro): execCommand e, se nem
+     isso funcionar, uma textarea já selecionada para copiar com Ctrl+C. */
+  function manualCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', 'readonly');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    if (ok) { feedback(t('copy.done')); return; }
+    var box = document.getElementById('copy-fallback');
+    if (!box) {
+      box = document.createElement('textarea');
+      box.id = 'copy-fallback';
+      box.rows = 8;
+      box.setAttribute('aria-label', t('a11y.copyLabel'));
+      box.className = 'field mt-3 font-mono text-[11px]';
+      document.getElementById('result').appendChild(box);
+    }
+    box.value = text;
+    box.focus();
+    box.select();
+    feedback(t('copy.manual'));
+  }
+
+  /* --------------------------- EVENTOS --------------------------- */
+
+  function wire() {
+    els.form.addEventListener('submit', function (ev) { ev.preventDefault(); refresh(); });
+
+    ['input', 'change'].forEach(function (type) {
+      els.form.addEventListener(type, function (ev) {
+        if (ev.target && ev.target.classList && ev.target.classList.contains('preset')) return;
+        refresh();
+      });
+    });
+
+    els.form.addEventListener('click', function (ev) {
+      var chip = ev.target && ev.target.closest ? ev.target.closest('.preset') : null;
+      if (!chip) return;
+      ev.preventDefault();
+      els.params.value = chip.getAttribute('data-params');
+      refresh();
+    });
+
+    els.reset.addEventListener('click', function () { applyDefaults(); refresh(); });
+
+    els.themeToggle.addEventListener('click', function () {
+      applyTheme(themeState === 'dark' ? 'light' : 'dark');
+      savePrefs();
+    });
+
+    els.langToggle.addEventListener('click', function () {
+      setLang(uiLang === 'en' ? 'pt' : 'en');
+      savePrefs();
+    });
+
+    document.getElementById('result').addEventListener('click', function (ev) {
+      if (ev.target && ev.target.closest && ev.target.closest('[data-copy]')) copySummary();
+    });
+  }
+
+  /* ---------------------------- INIT ---------------------------- */
+
+  function init() {
+    for (var key in ELEMENT_IDS) {
+      if (Object.prototype.hasOwnProperty.call(ELEMENT_IDS, key)) els[key] = document.getElementById(ELEMENT_IDS[key]);
+    }
+    els.form = document.getElementById('hw-form');
+    els.reset = document.getElementById('reset');
+    els.themeToggle = document.getElementById('theme-toggle');
+
+    var prefs = loadPrefs();
+    var overrides = urlOverrides();
+
+    /* Precedência do idioma: ?lang= > preferência salva > inglês (padrão). */
+    debugI18n = overrides.debug === true;
+    uiLang = (overrides.lang === 'pt' || overrides.lang === 'en') ? overrides.lang
+      : ((prefs && prefs.lang === 'pt') ? 'pt' : 'en');
+
+    applyTheme(overrides.theme ? overrides.theme : ((prefs && prefs.theme) ? prefs.theme : 'dark'));
+    if (prefs && prefs.values) setValues(prefs.values);
+    setValues(overrides);
+    applyI18n();
+
+    wire();
+    refresh();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>

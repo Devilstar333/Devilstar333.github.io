@@ -103,6 +103,7 @@ No framework, no bundler, no `node_modules`.
 
 Hosting is free, so support goes straight into the domain and new features.
 
+- **Ko-fi:** https://ko-fi.com/erc333
 - **GitHub Sponsors:** https://github.com/sponsors/Devilstar333
 
 The most valuable contribution costs nothing: open an issue with **real-world

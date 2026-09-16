@@ -219,6 +219,9 @@
       <li data-i18n="footer.b5">Speed ≈ effective memory bandwidth (GPU ~600 GB/s, DDR5 ~80 GB/s) ÷ total memory, capped at 150 tok/s.</li>
     </ul>
     <p data-i18n="footer.note" class="mt-3">These are approximations: MoE architectures, quantized KV cache, layer-split multi-GPU and prompt processing are not modeled. Use them as an order of magnitude to decide what to download, not as a guarantee. None of the data you type leaves your browser — the whole calculation runs client-side.</p>
+    <p class="mt-4 border-t border-slate-200/80 pt-3 dark:border-white/10">
+      <a href="https://ko-fi.com/erc333" target="_blank" rel="noopener noreferrer" data-i18n="footer.support" class="font-semibold text-emerald-700 underline decoration-dotted underline-offset-2 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300">Support this project on Ko-fi ☕</a>
+    </p>
   </div>
 </footer>
 
@@ -407,7 +410,8 @@
     'footer.b3': '<code class="font-mono">KV cache ≈ 0.007 GB × billions of parameters × (context ÷ 1024)</code>, calibrated on GQA models.',
     'footer.b4': 'Usable VRAM = VRAM − display reserve; usable RAM = RAM − OS and app reserve.',
     'footer.b5': 'Speed ≈ effective memory bandwidth (GPU ~600 GB/s, DDR5 ~80 GB/s) ÷ total memory, capped at 150 tok/s.',
-    'footer.note': 'These are approximations: MoE architectures, quantized KV cache, layer-split multi-GPU and prompt processing are not modeled. Use them as an order of magnitude to decide what to download, not as a guarantee. None of the data you type leaves your browser — the whole calculation runs client-side.'
+    'footer.note': 'These are approximations: MoE architectures, quantized KV cache, layer-split multi-GPU and prompt processing are not modeled. Use them as an order of magnitude to decide what to download, not as a guarantee. None of the data you type leaves your browser — the whole calculation runs client-side.',
+    'footer.support': 'Support this project on Ko-fi ☕'
 
   };
 
@@ -550,7 +554,8 @@
     'footer.b3': '<code class="font-mono">KV cache ≈ 0,007 GB × bilhões de parâmetros × (contexto ÷ 1024)</code>, calibrado em modelos GQA.',
     'footer.b4': 'VRAM útil = VRAM − reserva de display; RAM útil = RAM − reserva do SO e dos apps.',
     'footer.b5': 'Velocidade ≈ largura de banda efetiva (GPU ~600 GB/s, DDR5 ~80 GB/s) ÷ memória total, limitada a 150 tok/s.',
-    'footer.note': 'São aproximações: arquiteturas MoE, quantização do KV cache, split por camadas em multi-GPU e prompt processing não são modelados. Use como ordem de grandeza para decidir o que baixar, não como garantia. Nenhum dado que você digita sai do seu navegador — o cálculo roda inteiro no client-side.'
+    'footer.note': 'São aproximações: arquiteturas MoE, quantização do KV cache, split por camadas em multi-GPU e prompt processing não são modelados. Use como ordem de grandeza para decidir o que baixar, não como garantia. Nenhum dado que você digita sai do seu navegador — o cálculo roda inteiro no client-side.',
+    'footer.support': 'Apoie este projeto no Ko-fi ☕'
 
   };
   var STRINGS = { en: EN, pt: PT };

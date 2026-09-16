@@ -250,22 +250,26 @@
     vramReserve: 0.75, ramReserve: 2.5, strict: false
   };
 
-  /* ============ MONETIZAÇÃO: CTAs de afiliado (configurável) ============
-     Cole aqui as SUAS URLs de afiliado/referral. Enquanto estiverem vazias,
-     nenhum CTA é renderizado — o site fica limpo e sem link quebrado.
-     Exemplos: RunPod  https://runpod.io?ref=SEU_CODIGO
-               Vast.ai https://cloud.vast.ai/?ref_id=SEU_ID
-               Amazon  https://amzn.to/SEU_CODIGO
-  ====================================================================== */
+  /* ============ MONETIZAÇÃO: afiliados ============
+     Amazon Associates: já configurado com a sua tag (llmcalculator-20).
+       ⚠️ Confira a LOJA: 'amazonStore' aponta para o Brasil. Se você entrou no
+       programa dos EUA, troque para https://www.amazon.com — a tag é a mesma,
+       mas a comissão só conta na loja em que você está cadastrado.
+     RunPod/Vast.ai: cole as URLs de referral quando criar as contas
+       (ex.: https://runpod.io?ref=SEU_CODIGO). Enquanto estiverem vazias,
+       esses botões não aparecem.
+  ================================================ */
+  var AFFILIATE = {
+    amazonTag: 'llmcalculator-20',
+    amazonStore: 'https://www.amazon.com.br',
+    amazonEnabled: true
+  };
+
   var OFFERS = {
     cloud: [
       { label: 'RunPod', url: '' },
       { label: 'Vast.ai', url: '' },
       { label: 'Lambda', url: '' }
-    ],
-    hardware: [
-      { label: 'Amazon', url: '' },
-      { label: 'Newegg', url: '' }
     ]
   };
 
@@ -443,7 +447,12 @@
     'offer.cloudBody': 'Hourly A100/H100 instances are often cheaper than an upgrade for occasional use.',
     'offer.hwTitle': 'To run it 100% on the GPU you would need about {vram} of VRAM',
     'offer.hwBody': 'Next standard tiers: {tiers}. Extra system RAM also helps with offload.',
-    'offer.disclosure': 'Affiliate links: they cost you nothing extra and help keep this tool free.'
+    'offer.disclosure': 'Affiliate links: they cost you nothing extra and help keep this tool free.',
+    'offer.amazonDisclosure': 'As an Amazon Associate I earn from qualifying purchases.',
+    'offer.labelGpu': 'GPUs with {vram} GB on Amazon',
+    'offer.labelRam': 'More system RAM on Amazon',
+    'offer.queryGpu': 'gpu {vram}gb vram',
+    'offer.queryRam': 'ddr5 64gb kit'
 
   };
 
@@ -594,7 +603,12 @@
     'offer.cloudBody': 'Instâncias A100/H100 por hora costumam sair mais baratas que um upgrade para uso esporádico.',
     'offer.hwTitle': 'Para rodar 100% na GPU você precisaria de cerca de {vram} de VRAM',
     'offer.hwBody': 'Faixas padrão seguintes: {tiers}. Mais RAM do sistema também ajuda no offload.',
-    'offer.disclosure': 'Links de afiliado: não custam nada a mais para você e ajudam a manter a ferramenta gratuita.'
+    'offer.disclosure': 'Links de afiliado: não custam nada a mais para você e ajudam a manter a ferramenta gratuita.',
+    'offer.amazonDisclosure': 'Como Associado da Amazon, eu ganho com compras qualificadas.',
+    'offer.labelGpu': 'Placas com {vram} GB na Amazon',
+    'offer.labelRam': 'Mais RAM na Amazon',
+    'offer.queryGpu': 'placa de video {vram}gb',
+    'offer.queryRam': 'memoria ddr5 64gb'
 
   };
   var STRINGS = { en: EN, pt: PT };
@@ -1017,11 +1031,36 @@
     return html;
   }
 
+  /* Amazon Associates: links de busca (nunca quebram, ao contrário de ASINs fixos). */
+  function amazonReady() {
+    return AFFILIATE.amazonEnabled && !!AFFILIATE.amazonTag && /^https?:\/\//i.test(AFFILIATE.amazonStore);
+  }
+
+  function amazonSearch(query) {
+    return AFFILIATE.amazonStore + '/s?k=' + encodeURIComponent(query) +
+      '&tag=' + encodeURIComponent(AFFILIATE.amazonTag);
+  }
+
+  function amazonLinks(tiers, needed) {
+    var vram = tiers.length ? tiers[0] : Math.ceil(needed);
+    var buttons = [
+      { label: t('offer.labelGpu', { vram: vram }), query: t('offer.queryGpu', { vram: vram }) },
+      { label: t('offer.labelRam'), query: t('offer.queryRam') }
+    ];
+    var html = '';
+    for (var i = 0; i < buttons.length; i++) {
+      html += '<a href="' + amazonSearch(buttons[i].query) + '" target="_blank" rel="sponsored nofollow noopener noreferrer" ' +
+        'class="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400">' +
+        buttons[i].label + ' &nearr;</a>';
+    }
+    return html;
+  }
+
   function monetizationBlock(plan) {
     if (plan.verdict === 'vram') return '';
     var cloud = activeOffers(OFFERS.cloud);
-    var hw = activeOffers(OFFERS.hardware);
-    if (!cloud.length && !hw.length) return '';
+    var hw = amazonReady();
+    if (!cloud.length && !hw) return '';
 
     /* VRAM que o modelo exigiria para caber inteiro = total + reserva de display. */
     var needed = plan.total + (plan.input.vram - plan.usableVram);
@@ -1035,14 +1074,16 @@
         '<p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">' + t('offer.cloudBody') + '</p>' +
         '<div class="mt-2 flex flex-wrap gap-2">' + offerLinks(cloud) + '</div>';
     }
-    if (hw.length) {
+    if (hw) {
       html += '<p class="mt-3 text-sm font-semibold">' + t('offer.hwTitle', { vram: gb1(needed) }) + '</p>' +
         '<p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">' +
           t('offer.hwBody', { tiers: tiers.length ? tiers.join(' / ') + ' GB' : '—' }) + '</p>' +
-        '<div class="mt-2 flex flex-wrap gap-2">' + offerLinks(hw) + '</div>';
+        '<div class="mt-2 flex flex-wrap gap-2">' + amazonLinks(tiers, needed) + '</div>';
     }
 
-    return html + '<p class="mt-3 text-[10px] leading-relaxed text-slate-400">' + t('offer.disclosure') + '</p></div>';
+    html += '<p class="mt-3 text-[10px] leading-relaxed text-slate-400">' + t('offer.disclosure') + '</p>';
+    if (hw) html += '<p class="text-[10px] leading-relaxed text-slate-400">' + t('offer.amazonDisclosure') + '</p>';
+    return html + '</div>';
   }
 
   /* Monta o card de resultado. plan === null -> estado vazio. */

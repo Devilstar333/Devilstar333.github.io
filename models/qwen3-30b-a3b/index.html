@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark light" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23020617'/%3E%3Crect x='5' y='5' width='14' height='14' rx='3' fill='none' stroke='%2310b981' stroke-width='1.6'/%3E%3Crect x='9.5' y='9.5' width='5' height='5' rx='1' fill='%2310b981'/%3E%3C/svg%3E" />
+<title>Qwen3 30B A3B VRAM requirements: how much memory do you need?</title>
+<meta name="description" content="How much VRAM Qwen3 30B A3B needs: 27.6 GB at Q4_K_M with a 32768 token context, and which GPU tier runs it 100% on the GPU." />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Qwen3 30B A3B VRAM requirements: how much memory do you need?" />
+<meta property="og:description" content="How much VRAM Qwen3 30B A3B needs: 27.6 GB at Q4_K_M with a 32768 token context, and which GPU tier runs it 100% on the GPU." />
+<meta property="og:locale" content="en_US" />
+<meta property="og:locale:alternate" content="pt_BR" />
+<meta name="twitter:card" content="summary" />
+<link rel="canonical" href="https://devilstar333.github.io/models/qwen3-30b-a3b/" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'ui-monospace', 'monospace'] } } } };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  html { color-scheme: dark; }
+  body { background-color: #020617; color: #e2e8f0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+  table { border-collapse: collapse; }
+  th, td { border-bottom: 1px solid rgb(255 255 255 / .08); }
+  tbody tr:hover { background: rgb(255 255 255 / .03); }
+</style>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How much VRAM does Qwen3 30B A3B need at Q4_K_M? Can Qwen3 30B A3B run on a 24 GB GPU? How much memory do Q8_0 and FP16 need?","acceptedAnswer":{"@type":"Answer","text":"About 27.6 GB at a 32768 token context, which means a 32 GB GPU to run it entirely on the GPU (the display reserve is already discounted)."}}]}</script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+<header class="border-b border-white/10">
+  <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-5 sm:px-6">
+    <a href="/" class="flex items-center gap-3 no-underline">
+      <span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3" /><rect x="9" y="9" width="6" height="6" rx="1" /><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2" /></svg>
+      </span>
+      <span class="text-sm font-extrabold tracking-tight sm:text-base">Local LLM Hardware Calculator</span>
+    </a>
+    <a href="/" class="rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-400">Open the calculator &rarr;</a>
+  </div>
+</header>
+
+<main class="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+  <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">Model VRAM guide</p>
+  <h1 class="mt-2 text-2xl font-extrabold leading-tight sm:text-4xl">How much VRAM does Qwen3 30B A3B need?</h1>
+  <p class="mt-4 max-w-3xl text-sm leading-relaxed text-slate-300 sm:text-base">Mixture-of-experts: about 30B parameters in memory but only ~3B active per token, so it generates much faster than a dense 30B â€” if it fits in memory at all.</p>
+  <p class="mt-3 max-w-3xl text-sm leading-relaxed text-slate-300 sm:text-base">
+    Below: the memory each quantization needs at a 32768 token context (weights + runtime overhead + KV cache, with a
+    0.75 GB display reserve), which one fits <strong>entirely</strong> on a GPU, and what to expect when it does not.
+    The numbers come from the same formula as the
+    <a class="font-semibold text-emerald-400 underline decoration-dotted" href="/">interactive calculator</a>.
+  </p>
+
+  <section class="mt-8">
+    <h2 class="text-xl font-extrabold sm:text-2xl">Memory needed at 32768 context</h2>
+    <div class="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+      <table class="w-full min-w-[640px] text-sm">
+        <thead class="bg-white/[0.04] text-xs uppercase tracking-wider text-slate-400">
+          <tr>
+            <th class="px-4 py-3 text-left">Quantization</th>
+            <th class="px-4 py-3 text-right">Total memory</th>
+            <th class="px-4 py-3 text-left">Fits 100% on the GPU with</th>
+            <th class="px-4 py-3 text-right">Check yours</th>
+          </tr>
+        </thead>
+        <tbody class="text-slate-200">
+          <tr><td class="px-4 py-2.5 font-semibold">Q4_K_M <span class="text-xs text-slate-500">(most used)</span></td><td class="px-4 py-2.5 text-right font-mono">27.6 GB</td><td class="px-4 py-2.5">a 32 GB GPU</td><td class="px-4 py-2.5 text-right"><a class="text-xs font-semibold text-emerald-400 hover:underline" href="/?params=30&amp;quant=q4_k_m&amp;ctx=32768">test</a></td></tr>
+          <tr><td class="px-4 py-2.5 font-semibold">Q6_K <span class="text-xs text-slate-500">(higher quality)</span></td><td class="px-4 py-2.5 text-right font-mono">36.6 GB</td><td class="px-4 py-2.5">a 48 GB GPU</td><td class="px-4 py-2.5 text-right"><a class="text-xs font-semibold text-emerald-400 hover:underline" href="/?params=30&amp;quant=q6_k&amp;ctx=32768">test</a></td></tr>
+          <tr><td class="px-4 py-2.5 font-semibold">Q8_0 <span class="text-xs text-slate-500">(near lossless)</span></td><td class="px-4 py-2.5 text-right font-mono">45.6 GB</td><td class="px-4 py-2.5">a 48 GB GPU</td><td class="px-4 py-2.5 text-right"><a class="text-xs font-semibold text-emerald-400 hover:underline" href="/?params=30&amp;quant=q8_0&amp;ctx=32768">test</a></td></tr>
+          <tr><td class="px-4 py-2.5 font-semibold">FP16 <span class="text-xs text-slate-500">(unquantized)</span></td><td class="px-4 py-2.5 text-right font-mono">79.3 GB</td><td class="px-4 py-2.5">a 96 GB GPU</td><td class="px-4 py-2.5 text-right"><a class="text-xs font-semibold text-emerald-400 hover:underline" href="/?params=30&amp;quant=fp16&amp;ctx=32768">test</a></td></tr>
+
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-3 text-xs text-slate-500">Qwen3 MoE (Alibaba) &middot; 30B total parameters. Q4_K_M is the most used quantization; FP16 is the unquantized original.</p>
+  </section>
+
+  <section class="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">The short answer</h2>
+    <p class="mt-3 text-sm leading-relaxed text-slate-200">At <strong>Q4_K_M</strong> (the quantization most people run) Qwen3 30B A3B needs about <strong>27.6 GB</strong> of memory at a 32768-token context, so you want a <strong>32 GB GPU</strong> to keep it entirely on the GPU. It is a mixture-of-experts model: only a fraction of the parameters compute per token, so it feels much faster than a dense model of the same size â€” but every expert still has to sit in memory, which is why the table counts the full parameter count.</p>
+    <p class="mt-3 text-xs leading-relaxed text-slate-400">On a 24 GB card it does not fit: roughly <strong>23.2 GB</strong> stay in VRAM and <strong>4.4 GB</strong> spill to system RAM. Offload works, but generation slows down several times, because system RAM bandwidth is far below GPU bandwidth. Dropping the context to 4,096 tokens frees about 5.9 GB.</p>
+  </section><div class="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5"><h3 class="text-sm font-bold uppercase tracking-wider text-slate-400">Shopping for a card?</h3><p class="mt-2 text-sm text-slate-300">Current listings for the VRAM tier that fits Qwen3 30B A3B 100% at Q4_K_M, plus RAM if you plan to offload:</p><div class="mt-3 flex flex-wrap gap-2"><a href="https://www.amazon.com.br/s?k=placa%20de%20video%2032gb&tag=llmcalculator-20" target="_blank" rel="sponsored nofollow noopener noreferrer" class="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400">GPUs with 32 GB &nearr;</a><a href="https://www.amazon.com.br/s?k=memoria%20ddr5%2064gb&tag=llmcalculator-20" target="_blank" rel="sponsored nofollow noopener noreferrer" class="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400">DDR5 RAM kits &nearr;</a></div><p class="mt-3 text-[11px] leading-relaxed text-slate-400">As an Amazon Associate I earn from qualifying purchases. It costs you nothing extra and helps keep this site free.</p></div>
+  <section class="mt-10">
+    <h2 class="text-xl font-extrabold sm:text-2xl">Frequently asked questions</h2>
+    <div class="mt-5 space-y-5">
+      <div><h3 class="font-bold">How much VRAM does Qwen3 30B A3B need at Q4_K_M? Can Qwen3 30B A3B run on a 24 GB GPU? How much memory do Q8_0 and FP16 need?</h3><p class="mt-1.5 text-sm leading-relaxed text-slate-300">About 27.6 GB at a 32768 token context, which means a 32 GB GPU to run it entirely on the GPU (the display reserve is already discounted).</p></div>
+    </div>
+  </section>
+
+  <section class="mt-10 rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.07] p-6 text-center">
+    <h2 class="text-lg font-extrabold sm:text-xl">Check Qwen3 30B A3B against your own hardware</h2>
+    <p class="mx-auto mt-2 max-w-2xl text-sm text-slate-300">The calculator opens pre-filled with 30B and Q4_K_M &mdash; change your RAM and VRAM to see whether it fits, needs offload, or exceeds your total memory.</p>
+    <a href="/?params=30&quant=q4_k_m&ctx=32768" class="mt-4 inline-block rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400">Open the calculator &rarr;</a>
+    <p class="mt-3 text-xs text-slate-400">Free, no sign-up, and nothing you type leaves your browser.</p>
+  </section>
+
+  <section class="mt-10">
+    <h2 class="text-xl font-extrabold sm:text-2xl">Other models</h2>
+    <p class="mt-3 flex flex-wrap gap-x-3 gap-y-2 text-sm"><a class="font-semibold text-emerald-400 underline decoration-dotted" href="/models/qwen3-32b/">Qwen3 32B</a> &middot; <a class="font-semibold text-emerald-400 underline decoration-dotted" href="/models/llama-3.3-70b/">Llama 3.3 70B</a> &middot; <a class="font-semibold text-emerald-400 underline decoration-dotted" href="/models/llama-3.1-8b/">Llama 3.1 8B</a> &middot; <a class="font-semibold text-emerald-400 underline decoration-dotted" href="/models/mistral-small-24b/">Mistral Small 24B</a> &middot; <a class="font-semibold text-emerald-400 underline decoration-dotted" href="/models/gemma-3-27b/">Gemma 3 27B</a> &middot; <a class="font-semibold text-emerald-400 underline decoration-dotted" href="/models/deepseek-r1-distill-32b/">DeepSeek-R1 Distill 32B</a> &middot; <a class="font-semibold text-emerald-400 underline decoration-dotted" href="/models/phi-4-14b/">Phi-4 14B</a></p>
+    <p class="mt-4 text-xs text-slate-500"><a class="font-semibold text-emerald-400 underline decoration-dotted" href="/vram-requirements/">See the full VRAM table for every model size &rarr;</a></p>
+  </section>
+</main>
+
+<footer class="border-t border-white/10">
+  <div class="mx-auto max-w-5xl px-4 py-8 text-xs leading-relaxed text-slate-400 sm:px-6">
+    <p>
+      Estimates based on the community formula (weights + 20% overhead + 0.6 GB + KV cache). Real usage varies with the
+      architecture, grouped-query attention settings, KV cache quantization and prompt processing. Treat them as an order
+      of magnitude, not a guarantee. Quantized files are usually published by the community (bartowski, unsloth and
+      others) and the exact size differs slightly between revisions.
+    </p>
+    <p class="mt-3">
+      <a class="font-semibold text-emerald-400 underline decoration-dotted" href="/">Calculator</a> &middot;
+      <a class="font-semibold text-emerald-400 underline decoration-dotted" href="/vram-requirements/">VRAM guide</a> &middot;
+      <a class="font-semibold text-emerald-400 underline decoration-dotted" href="/models/">All models</a> &middot;
+      <a class="font-semibold text-emerald-400 underline decoration-dotted" href="https://github.com/Devilstar333/Devilstar333.github.io">GitHub</a> &middot;
+      <a class="font-semibold text-emerald-400 underline decoration-dotted" href="https://ko-fi.com/erc333" target="_blank" rel="noopener noreferrer">Support on Ko-fi &#9749;</a>
+    </p>
+  </div>
+</footer>
+</body>
+</html>

@@ -248,6 +248,28 @@
     vramReserve: 0.75, ramReserve: 2.5, strict: false
   };
 
+  /* ============ MONETIZAÇÃO: CTAs de afiliado (configurável) ============
+     Cole aqui as SUAS URLs de afiliado/referral. Enquanto estiverem vazias,
+     nenhum CTA é renderizado — o site fica limpo e sem link quebrado.
+     Exemplos: RunPod  https://runpod.io?ref=SEU_CODIGO
+               Vast.ai https://cloud.vast.ai/?ref_id=SEU_ID
+               Amazon  https://amzn.to/SEU_CODIGO
+  ====================================================================== */
+  var OFFERS = {
+    cloud: [
+      { label: 'RunPod', url: '' },
+      { label: 'Vast.ai', url: '' },
+      { label: 'Lambda', url: '' }
+    ],
+    hardware: [
+      { label: 'Amazon', url: '' },
+      { label: 'Newegg', url: '' }
+    ]
+  };
+
+  /* Faixas de VRAM comuns no mercado, usadas na recomendação de upgrade. */
+  var VRAM_TIERS = [8, 12, 16, 20, 24, 32, 48, 64, 80];
+
   var MODEL = {
     overheadPct: 0.20,    // overhead de contexto/sistema sobre os pesos (padrão da comunidade)
     runtimeGB: 0.60,      // buffers fixos de compute/runtime (CUDA/Metal/ROCm)
@@ -412,7 +434,13 @@
     'footer.b4': 'Usable VRAM = VRAM − display reserve; usable RAM = RAM − OS and app reserve.',
     'footer.b5': 'Speed ≈ effective memory bandwidth (GPU ~600 GB/s, DDR5 ~80 GB/s) ÷ total memory, capped at 150 tok/s.',
     'footer.note': 'These are approximations: MoE architectures, quantized KV cache, layer-split multi-GPU and prompt processing are not modeled. Use them as an order of magnitude to decide what to download, not as a guarantee. None of the data you type leaves your browser — the whole calculation runs client-side.',
-    'footer.support': 'Support this project on Ko-fi ☕'
+    'footer.support': 'Support this project on Ko-fi ☕',
+    'offer.title': 'Need more memory?',
+    'offer.cloudTitle': 'Run this model on a rented cloud GPU',
+    'offer.cloudBody': 'Hourly A100/H100 instances are often cheaper than an upgrade for occasional use.',
+    'offer.hwTitle': 'To run it 100% on the GPU you would need about {vram} of VRAM',
+    'offer.hwBody': 'Next standard tiers: {tiers}. Extra system RAM also helps with offload.',
+    'offer.disclosure': 'Affiliate links: they cost you nothing extra and help keep this tool free.'
 
   };
 
@@ -556,7 +584,13 @@
     'footer.b4': 'VRAM útil = VRAM − reserva de display; RAM útil = RAM − reserva do SO e dos apps.',
     'footer.b5': 'Velocidade ≈ largura de banda efetiva (GPU ~600 GB/s, DDR5 ~80 GB/s) ÷ memória total, limitada a 150 tok/s.',
     'footer.note': 'São aproximações: arquiteturas MoE, quantização do KV cache, split por camadas em multi-GPU e prompt processing não são modelados. Use como ordem de grandeza para decidir o que baixar, não como garantia. Nenhum dado que você digita sai do seu navegador — o cálculo roda inteiro no client-side.',
-    'footer.support': 'Apoie este projeto no Ko-fi ☕'
+    'footer.support': 'Apoie este projeto no Ko-fi ☕',
+    'offer.title': 'Precisa de mais memória?',
+    'offer.cloudTitle': 'Rode este modelo numa GPU alugada na nuvem',
+    'offer.cloudBody': 'Instâncias A100/H100 por hora costumam sair mais baratas que um upgrade para uso esporádico.',
+    'offer.hwTitle': 'Para rodar 100% na GPU você precisaria de cerca de {vram} de VRAM',
+    'offer.hwBody': 'Faixas padrão seguintes: {tiers}. Mais RAM do sistema também ajuda no offload.',
+    'offer.disclosure': 'Links de afiliado: não custam nada a mais para você e ajudam a manter a ferramenta gratuita.'
 
   };
   var STRINGS = { en: EN, pt: PT };
@@ -947,6 +981,66 @@
     return noteBox(ICONS.exceed, 'bad', t('tip.exceed.title'),
       t('tip.exceed.body', { deficit: gb(plan.deficit), ctx: ctxLabel(plan.input.ctx) }));
   }
+  /* ============ CTAs de monetização (só aparecem com link configurado) ============
+     São exibidos apenas nos vereditos de offload/excedeu, que é quando a pessoa
+     realmente precisa de mais memória — e nunca no caso "cabe 100% na VRAM". */
+
+  function activeOffers(list) {
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].url && /^https?:\/\//i.test(list[i].url)) out.push(list[i]);
+    }
+    return out;
+  }
+
+  /* Próximas faixas de VRAM (8/12/16/20/24/32/48/64/80 GB) que comportariam o modelo. */
+  function vramTiersFor(needed) {
+    var out = [];
+    for (var i = 0; i < VRAM_TIERS.length && out.length < 2; i++) {
+      if (VRAM_TIERS[i] >= needed) out.push(VRAM_TIERS[i]);
+    }
+    return out;
+  }
+
+  /* Links de afiliado: rel="sponsored nofollow" por exigência de transparência. */
+  function offerLinks(list) {
+    var html = '';
+    for (var i = 0; i < list.length; i++) {
+      html += '<a href="' + list[i].url + '" target="_blank" rel="sponsored nofollow noopener noreferrer" ' +
+        'class="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400">' +
+        list[i].label + ' &nearr;</a>';
+    }
+    return html;
+  }
+
+  function monetizationBlock(plan) {
+    if (plan.verdict === 'vram') return '';
+    var cloud = activeOffers(OFFERS.cloud);
+    var hw = activeOffers(OFFERS.hardware);
+    if (!cloud.length && !hw.length) return '';
+
+    /* VRAM que o modelo exigiria para caber inteiro = total + reserva de display. */
+    var needed = plan.total + (plan.input.vram - plan.usableVram);
+    var tiers = vramTiersFor(needed > 0 ? needed : plan.total);
+
+    var html = '<div class="rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]">' +
+      '<p class="text-xs font-bold uppercase tracking-wider text-slate-400">' + t('offer.title') + '</p>';
+
+    if (cloud.length) {
+      html += '<p class="mt-2 text-sm font-semibold">' + t('offer.cloudTitle') + '</p>' +
+        '<p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">' + t('offer.cloudBody') + '</p>' +
+        '<div class="mt-2 flex flex-wrap gap-2">' + offerLinks(cloud) + '</div>';
+    }
+    if (hw.length) {
+      html += '<p class="mt-3 text-sm font-semibold">' + t('offer.hwTitle', { vram: gb1(needed) }) + '</p>' +
+        '<p class="mt-0.5 text-[11px] leading-relaxed text-slate-400">' +
+          t('offer.hwBody', { tiers: tiers.length ? tiers.join(' / ') + ' GB' : '—' }) + '</p>' +
+        '<div class="mt-2 flex flex-wrap gap-2">' + offerLinks(hw) + '</div>';
+    }
+
+    return html + '<p class="mt-3 text-[10px] leading-relaxed text-slate-400">' + t('offer.disclosure') + '</p></div>';
+  }
+
   /* Monta o card de resultado. plan === null -> estado vazio. */
   function render(plan) {
     var el = document.getElementById('result');
@@ -1005,6 +1099,7 @@
     html += '<div class="mt-5 space-y-3">';
     if (plan.verdict !== 'exceed') html += speedBlock(plan);
     html += suggestionBlock(plan);
+    html += monetizationBlock(plan);
     html += '</div>';
 
     /* Rodapé do card */
